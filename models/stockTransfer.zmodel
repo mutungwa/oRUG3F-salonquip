@@ -1,0 +1,20 @@
+
+ import "./item.zmodel"  
+ import "./branch.zmodel"  
+
+model StockTransfer {
+
+    id        String    @id @default(uuid())  
+    quantity  Float       
+    transferDate String      
+    itemId    String      
+    item      Item?      @relation(fields: [itemId], references: [id], name:"item")  
+    fromBranchId String      
+    fromBranch Branch?    @relation(fields: [fromBranchId], references: [id], name:"fromBranch")  
+    toBranchId String      
+    toBranch  Branch?    @relation(fields: [toBranchId], references: [id], name:"toBranch")  
+
+dateCreated DateTime @default(now())
+      dateUpdated DateTime @updatedAt  @default(now())
+      @@allow("all", true)
+}

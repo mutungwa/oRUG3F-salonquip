@@ -1,0 +1,20 @@
+
+ import "./item.zmodel"  
+ import "./sale.zmodel"  
+ import "./stockTransfer.zmodel"  
+
+model Branch {
+
+    id        String    @id @default(uuid())  
+    name      String      
+    location  String      
+    phoneNumber String      
+
+items     Item[]    @relation("branch")  
+    sales     Sale[]    @relation("branch")  
+    stockTransfersAsFromBranch StockTransfer[] @relation("fromBranch")  
+    stockTransfersAsToBranch StockTransfer[] @relation("toBranch")  
+      dateCreated DateTime @default(now())
+      dateUpdated DateTime @updatedAt  @default(now())
+      @@allow("all", true)
+}

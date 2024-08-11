@@ -1,0 +1,13 @@
+
+ import "./user.zmodel"  
+
+model Admin {
+
+    id        String    @id @default(uuid())  
+    userId    String      
+    user      User?      @relation(fields: [userId], references: [id], name:"user")  
+
+dateCreated DateTime @default(now())
+      dateUpdated DateTime @updatedAt  @default(now())
+      @@allow("all", true)
+}

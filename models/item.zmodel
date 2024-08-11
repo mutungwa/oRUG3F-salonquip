@@ -1,0 +1,24 @@
+import "./branch.zmodel"  
+import "./sale.zmodel"  
+import "./stockTransfer.zmodel"  
+
+model Item {
+
+    id        String    @id @default(uuid())  
+    name      String      
+    description String?      
+    category  String      
+    price     Float       
+    sku       String      
+    quantity  Float       
+    origin    String      
+    imageUrl  String?      
+    branchId  String      
+    branch    Branch?    @relation(fields: [branchId], references: [id], name:"branch")  
+
+sales     Sale[]    @relation("item")  
+    stockTransfers StockTransfer[] @relation("item")  
+      dateCreated DateTime @default(now())
+      dateUpdated DateTime @updatedAt  @default(now())
+      @@allow("all", true)
+}

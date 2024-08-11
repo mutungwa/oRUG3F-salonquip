@@ -1,0 +1,21 @@
+import "./item.zmodel"
+import "./branch.zmodel"
+
+model Sale {
+    id            String    @id @default(uuid())
+    sellPrice     Float
+    quantitySold  Float
+    saleDate      String
+    itemId        String
+    item          Item?     @relation(fields: [itemId], references: [id], name:"item")
+    branchId      String
+    branch        Branch?   @relation(fields: [branchId], references: [id], name:"branch")
+    itemName      String
+    itemCategory  String
+    branchName    String
+    itemPrice     Float
+
+    dateCreated   DateTime  @default(now())
+    dateUpdated   DateTime  @updatedAt @default(now())
+    @@allow("all", true)
+}

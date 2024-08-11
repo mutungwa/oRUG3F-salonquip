@@ -1,0 +1,11 @@
+
+
+model RagVector {
+    id           String @id @default(uuid())
+    vectorId     String
+    argsJson     Bytes?
+    docstoreJson Bytes?
+    hnswlibIndex Bytes?
+
+@@allow("all", true)
+}
