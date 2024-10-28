@@ -124,6 +124,8 @@ export default function ItemsManagementPage() {
           saleDate: dayjs().format(),
           branchName: item.branch.name,
           itemPrice: item.price,
+          itemName: item.name,         // Add this line to include itemName
+          itemCategory: item.category,  // Add this line to include itemCategory
         } as Prisma.SaleCreateInput, // Explicitly cast the data to the correct type
       });
       enqueueSnackbar('Item sold successfully', { variant: 'success' })
