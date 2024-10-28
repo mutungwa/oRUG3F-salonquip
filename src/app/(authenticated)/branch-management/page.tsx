@@ -1,14 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { Form, Input, Button, Row, Col, Typography, Table, Space, Modal } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-const { Title, Text } = Typography
 import { useUserContext } from '@/core/context'
-import { useRouter, useParams } from 'next/navigation'
-import { useSnackbar } from 'notistack'
 import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import { Button, Col, Form, Input, Modal, Row, Space, Table, Typography } from 'antd'
+import { useRouter } from 'next/navigation'
+import { useSnackbar } from 'notistack'
+import { useState } from 'react'
+const { Title, Text } = Typography
 
 export default function BranchManagementPage() {
   const router = useRouter()
@@ -18,19 +18,21 @@ export default function BranchManagementPage() {
   const { mutateAsync: updateBranch } = Api.branch.update.useMutation()
   const { mutateAsync: deleteBranch } = Api.branch.delete.useMutation()
 
-  const { data: branches, isLoading } = Api.branch.findMany.useQuery({})
+  // Use refetch from the query to trigger a re-fetch
+  const { data: branches, isLoading, refetch } = Api.branch.findMany.useQuery({})
 
   const [form] = Form.useForm()
   const [editForm] = Form.useForm()
   const [editingBranch, setEditingBranch] = useState(null)
   const [isFormVisible, setIsFormVisible] = useState(false)
 
-  const onFinish = async (values: { name: string; location: string; phoneNumber: string }) => {
+  const onFinish = async (values) => {
     try {
       await createBranch({ data: values })
       enqueueSnackbar('Branch added successfully', { variant: 'success' })
       form.resetFields()
       setIsFormVisible(false)
+      refetch() // Refetch branches to update the list
     } catch (error) {
       enqueueSnackbar('Failed to add branch', { variant: 'error' })
     }
@@ -46,6 +48,7 @@ export default function BranchManagementPage() {
       await updateBranch({ where: { id: editingBranch.id }, data: values })
       enqueueSnackbar('Branch updated successfully', { variant: 'success' })
       setEditingBranch(null)
+      refetch() // Refetch branches to update the list
     } catch (error) {
       enqueueSnackbar('Failed to update branch', { variant: 'error' })
     }
@@ -55,6 +58,7 @@ export default function BranchManagementPage() {
     try {
       await deleteBranch({ where: { id } })
       enqueueSnackbar('Branch deleted successfully', { variant: 'success' })
+      refetch() // Refetch branches to update the list
     } catch (error) {
       enqueueSnackbar('Failed to delete branch', { variant: 'error' })
     }
@@ -107,41 +111,25 @@ export default function BranchManagementPage() {
             onCancel={() => setIsFormVisible(false)}
             footer={null}
           >
-            <Form
-              form={form}
-              layout="vertical"
-              onFinish={onFinish}
-            >
+            <Form form={form} layout="vertical" onFinish={onFinish}>
               <Form.Item
                 label="Name"
                 name="name"
-                rules={[
-                  { required: true, message: 'Please input the branch name!' },
-                ]}
+                rules={[{ required: true, message: 'Please input the branch name!' }]}
               >
                 <Input placeholder="Branch Name" />
               </Form.Item>
               <Form.Item
                 label="Location"
                 name="location"
-                rules={[
-                  {
-                    required: true,
-                    message: 'Please input the branch location!',
-                  },
-                ]}
+                rules={[{ required: true, message: 'Please input the branch location!' }]}
               >
                 <Input placeholder="Branch Location" />
               </Form.Item>
               <Form.Item
                 label="Phone Number"
                 name="phoneNumber"
-                rules={[
-                  {
-                    required: true,
-                    message: 'Please input the branch phone number!',
-                  },
-                ]}
+                rules={[{ required: true, message: 'Please input the branch phone number!' }]}
               >
                 <Input placeholder="Branch Phone Number" />
               </Form.Item>
@@ -182,30 +170,20 @@ export default function BranchManagementPage() {
         }}
       >
         <Form form={editForm} layout="vertical">
-          <Form.Item
-            label="Name"
-            name="name"
-            rules={[
-              { required: true, message: 'Please input the branch name!' },
-            ]}
-          >
+          <Form.Item label="Name" name="name" rules={[{ required: true, message: 'Please input the branch name!' }]}>
             <Input placeholder="Branch Name" />
           </Form.Item>
           <Form.Item
             label="Location"
             name="location"
-            rules={[
-              { required: true, message: 'Please input the branch location!' },
-            ]}
+            rules={[{ required: true, message: 'Please input the branch location!' }]}
           >
             <Input placeholder="Branch Location" />
           </Form.Item>
           <Form.Item
             label="Phone Number"
             name="phoneNumber"
-            rules={[
-              { required: true, message: 'Please input the branch phone number!' },
-            ]}
+            rules={[{ required: true, message: 'Please input the branch phone number!' }]}
           >
             <Input placeholder="Branch Phone Number" />
           </Form.Item>
