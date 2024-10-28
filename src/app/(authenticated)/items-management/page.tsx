@@ -1,28 +1,28 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Prisma } from '@prisma/client'
-import {
-  Typography,
-  Form,
-  Input,
-  Button,
-  Select,
-  InputNumber,
-  Table,
-  Space,
-  Modal,
-} from 'antd'
-import { PlusOutlined, DollarOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
-const { Title, Text } = Typography
-const { Option } = Select
 import { useUserContext } from '@/core/context'
-import { useRouter, useParams } from 'next/navigation'
 import { useUploadPublic } from '@/core/hooks/upload'
-import { useSnackbar } from 'notistack'
-import dayjs from 'dayjs'
 import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
+import { DeleteOutlined, DollarOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import { Prisma } from '@prisma/client'
+import {
+  Button,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Typography,
+} from 'antd'
+import dayjs from 'dayjs'
+import { useParams, useRouter } from 'next/navigation'
+import { useSnackbar } from 'notistack'
+import { useEffect, useState } from 'react'
+const { Title, Text } = Typography
+const { Option } = Select
 
 export default function ItemsManagementPage() {
   const router = useRouter()
@@ -115,7 +115,7 @@ export default function ItemsManagementPage() {
           item: {
             connect: { id: item.id },
           },
-          branchId: item.branchId,
+          branchId: item.branchId as string, // Ensure it's explicitly a string
           branch: {
             connect: { id: item.branchId },
           },
@@ -124,9 +124,8 @@ export default function ItemsManagementPage() {
           saleDate: dayjs().format(),
           branchName: item.branch.name,
           itemPrice: item.price,
-        },
-      })
-
+        } as Prisma.SaleCreateInput, // Explicitly cast the data to the correct type
+      });
       enqueueSnackbar('Item sold successfully', { variant: 'success' })
       refetch()
     } catch (error) {
