@@ -129,6 +129,7 @@ model Sale {
   itemCategory String
   branchName   String
   itemPrice    Float
+  profit       Float
   dateCreated  DateTime @default(now())
   dateUpdated  DateTime @default(now()) @updatedAt()
 }
