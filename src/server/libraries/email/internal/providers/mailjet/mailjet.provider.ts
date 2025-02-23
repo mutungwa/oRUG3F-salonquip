@@ -19,27 +19,20 @@ export class MailjetProvider implements Provider {
   }
 
   private initialise(): void {
-    const isProduction = process.env.NODE_ENV === 'production'
-
-    if (!isProduction) {
-      console.warn(`Mailjet is disabled in development`)
-      return
-    }
-
     try {
       const apiKey = process.env.SERVER_EMAIL_MAILJET_API_KEY
       const secretKey = process.env.SERVER_EMAIL_MAILJET_SECRET_KEY
 
       if (!apiKey || !secretKey) {
         console.warn(
-          `Set EMAIL_MAILJET_API_KEY and EMAIL_MAILJET_SECRET_KEY to activate Mailjet`,
+          `Set SERVER_EMAIL_MAILJET_API_KEY and SERVER_EMAIL_MAILJET_SECRET_KEY to activate Mailjet`,
         )
         return
       }
 
       this.client = new Mailjet({ apiKey, apiSecret: secretKey })
 
-      console.log(`Mailjet service active`)
+      console.log(`Mailjet service active in ${process.env.NODE_ENV} mode`)
     } catch (error) {
       console.error(`Could not start Mailjet service`)
       console.error(error)
@@ -47,7 +40,21 @@ export class MailjetProvider implements Provider {
   }
 
   async send(options: SendOptions): Promise<void> {
+    if (!this.client) {
+      console.error('Mailjet client not initialized')
+      return
+    }
+
     const message = this.buildMessage(options)
+
+    // Add development mode logging
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Sending email:', {
+        to: options.to,
+        subject: options.subject,
+        type: options.type
+      })
+    }
 
     return this.client
       .post('send', { version: 'v3.1' })
@@ -59,10 +66,27 @@ export class MailjetProvider implements Provider {
         ],
       })
       .then(result => {
-        console.log(`Emails sent`, result)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Email sent successfully:', {
+            to: options.to,
+            subject: options.subject,
+            result: result.body
+          })
+        } else {
+          console.log(`Emails sent`, result)
+        }
       })
       .catch(error => {
-        console.error(`Could not send emails (${error.statusCode})`)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Email sending failed:', {
+            error: error.message,
+            statusCode: error.statusCode,
+            to: options.to,
+            subject: options.subject
+          })
+        } else {
+          console.error(`Could not send emails (${error.statusCode})`)
+        }
       })
   }
 
@@ -82,10 +106,15 @@ export class MailjetProvider implements Provider {
 
     const to = options.to.map(item => ({ Email: item.email, Name: item.name }))
 
+    // Add [DEV] prefix to subject in development mode
+    const subject = process.env.NODE_ENV === 'development' 
+      ? `[DEV] ${options.subject}`
+      : options.subject
+
     const message = {
       From: from,
       To: to,
-      Subject: options.subject,
+      Subject: subject,
       HTMLPart: undefined,
       Variables: undefined,
       TemplateLanguage: undefined,
@@ -97,11 +126,24 @@ export class MailjetProvider implements Provider {
     if (templateId) {
       message.TemplateLanguage = true
       message.templateId = templateId
-      message.Variables = options.variables
+      message.Variables = {
+        ...options.variables,
+        environment: process.env.NODE_ENV
+      }
     } else {
       const content = this.templateService.get(options)
 
-      message.HTMLPart = content
+      // Add development mode indicator to non-template emails
+      if (process.env.NODE_ENV === 'development') {
+        message.HTMLPart = `
+          <div style="background: #f0f0f0; padding: 10px; margin-bottom: 10px;">
+            Development Mode Email
+          </div>
+          ${content}
+        `
+      } else {
+        message.HTMLPart = content
+      }
     }
 
     return message

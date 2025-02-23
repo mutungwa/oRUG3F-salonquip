@@ -7,7 +7,7 @@ export enum EmailType {
 
 export const EmailSender = {
   default: {
-    email: 'no-reply@marblism.com',
-    name: 'Marblism',
+    email: 'mutungwakelvin@gmail.com',
+    name: 'SalonQuip',
   },
 }

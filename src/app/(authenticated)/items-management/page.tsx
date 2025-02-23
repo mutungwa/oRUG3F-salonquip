@@ -44,6 +44,21 @@ export default function ItemsManagementPage() {
 
   const handleAddItem = async (values: any) => {
     try {
+      // First check if an item with same name exists in the same branch
+      const existingItem = items?.find(
+        item => 
+          item.name.toLowerCase() === values.name.toLowerCase() && 
+          item.branchId === values.branch
+      );
+  
+      if (existingItem) {
+        enqueueSnackbar('An item with this name already exists in this branch', { 
+          variant: 'error' 
+        });
+        return; // Stop the function here if item exists
+      }
+  
+      // If no existing item found, proceed with creating new item
       const imageUrl = values.image ? await upload({ file: values.image.file }) : null;
       await createItem({
         data: {
