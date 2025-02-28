@@ -8,32 +8,80 @@ import { useRouter } from 'next/navigation'
 import { useSnackbar } from 'notistack'
 import { useState } from 'react'
 
+interface AuthError extends Error {
+  code?: string;
+  statusCode?: number;
+}
+
 export default function RegisterPage() {
   const router = useRouter()
   const { enqueueSnackbar } = useSnackbar()
-
   const [form] = Form.useForm()
-
   const [isLoading, setLoading] = useState(false)
 
-  const { mutateAsync: registerUser } =
-    Api.authentication.register.useMutation()
+  const { mutateAsync: registerUser } = Api.authentication.register.useMutation()
+
+  const getErrorMessage = (error: AuthError): string => {
+    if (error.code === 'USER_EXISTS') {
+      return 'This email is already registered'
+    }
+    if (error.statusCode === 429) {
+      return 'Too many attempts. Please try again later'
+    }
+    return error.message || 'An unexpected error occurred'
+  }
 
   const handleSubmit = async (values: Partial<User>) => {
     setLoading(true)
 
     try {
-      await registerUser(values)
-
-      signIn('credentials', {
+      const sanitizedValues = {
         ...values,
-        callbackUrl: '/home',
-      })
-    } catch (error) {
-      enqueueSnackbar(`Could not signup: ${error.message}`, {
+        email: values.email?.trim().toLowerCase(),
+        name: values.name?.trim(),
+      }
+
+      await registerUser(sanitizedValues)
+
+      try {
+        const signInResult = await signIn('credentials', {
+          ...sanitizedValues,
+          callbackUrl: '/home',
+          redirect: false,
+        })
+
+        if (signInResult?.error) {
+          throw new Error('Authentication failed after registration')
+        }
+
+        router.push('/home')
+      } catch (signInError) {
+        enqueueSnackbar('Registration successful but login failed. Please try logging in.', {
+          variant: 'warning',
+        })
+        router.push('/login')
+      }
+
+    } catch (error: any) {
+      const errorMessage = getErrorMessage(error as AuthError)
+      
+      enqueueSnackbar(`Registration failed: ${errorMessage}`, {
         variant: 'error',
+        preventDuplicate: true,
       })
 
+      console.error('Registration error:', {
+        message: error.message,
+        code: error.code,
+      })
+
+      form.setFields([
+        {
+          name: 'password',
+          value: '',
+        },
+      ])
+    } finally {
       setLoading(false)
     }
   }
@@ -81,12 +129,18 @@ export default function RegisterPage() {
             <Input.Password
               type="password"
               placeholder="Your password"
-              autoComplete="current-password"
+              autoComplete="new-password"
             />
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={isLoading} block>
+            <Button 
+              type="primary" 
+              htmlType="submit" 
+              loading={isLoading} 
+              block
+              disabled={isLoading}
+            >
               Register
             </Button>
           </Form.Item>
@@ -96,6 +150,7 @@ export default function RegisterPage() {
           ghost
           style={{ border: 'none' }}
           onClick={() => router.push('/login')}
+          disabled={isLoading}
         >
           <Flex gap={'small'} justify="center">
             <Typography.Text type="secondary">Have an account?</Typography.Text>{' '}

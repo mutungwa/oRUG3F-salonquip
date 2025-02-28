@@ -181,8 +181,13 @@ export default function StockManagementPage() {
       dataIndex: 'sales',
       key: 'profit',
       render: (sales: any[]) => {
-        const totalProfit = sales.reduce((acc, sale) => acc + sale.profit, 0)
-        return <Tag color="green">{`KES ${totalProfit.toFixed(2)}`}</Tag>
+        const totalProfit = sales.reduce((acc, sale) => acc + sale.profit, 0);
+        // Format number with commas and 2 decimal places
+        const formattedProfit = totalProfit.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+        return <Tag color="green">{`KES ${formattedProfit}`}</Tag>;
       },
     },
     {

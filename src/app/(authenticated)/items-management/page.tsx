@@ -6,7 +6,7 @@ import { Api } from '@/core/trpc';
 import { PageLayout } from '@/designSystem/layouts/Page.layout';
 import { DeleteOutlined, DollarOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { Prisma } from '@prisma/client';
-import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Typography } from 'antd';
+import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Typography, Tag, Alert } from 'antd';
 import dayjs from 'dayjs';
 import { useParams, useRouter } from 'next/navigation';
 import { useSnackbar } from 'notistack';
@@ -14,6 +14,12 @@ import { useEffect, useState } from 'react';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
+const styles = {
+  lowStockRow: {
+    backgroundColor: '#fff2f0',
+  }
+};
+
 
 export default function ItemsManagementPage() {
   const router = useRouter();
@@ -29,6 +35,7 @@ export default function ItemsManagementPage() {
   const [isSellModalVisible, setIsSellModalVisible] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [currentItem, setCurrentItem] = useState<any>(null);
+  const [stockFilter, setStockFilter] = useState<string | null>(null);
 
   const { data: branches } = Api.branch.findMany.useQuery({});
   const { data: fetchedItems, refetch } = Api.item.findMany.useQuery({ include: { branch: true } });
@@ -174,7 +181,28 @@ export default function ItemsManagementPage() {
     }
   };
 
-  const filteredItems = selectedBranch ? items?.filter(item => item.branchId === selectedBranch) : items;
+  const filteredItems = items
+  ?.filter(item => {
+    // Branch filter
+    const branchMatch = selectedBranch ? item.branchId === selectedBranch : true;
+    
+    // Stock level filter
+    let stockMatch = true;
+    if (stockFilter === 'outOfStock') {
+      stockMatch = item.quantity === 0;
+    } else if (stockFilter === 'low') {
+      stockMatch = item.quantity > 0 && item.quantity < 5;
+    } else if (stockFilter === 'normal') {
+      stockMatch = item.quantity >= 5;
+    }
+    
+    return branchMatch && stockMatch;
+  });
+
+// Add this handler function
+const handleStockFilter = (value: string | null) => {
+  setStockFilter(value);
+};
 
   const columns = [
     { title: 'Name', dataIndex: 'name', key: 'name' },
@@ -183,7 +211,25 @@ export default function ItemsManagementPage() {
     { title: 'Branch', dataIndex: ['branch', 'name'], key: 'branch' },
     { title: 'Price', dataIndex: 'price', key: 'price', render: (price: number) => price.toString() },
     { title: 'SKU', dataIndex: 'sku', key: 'sku' },
-    { title: 'Quantity', dataIndex: 'quantity', key: 'quantity', render: (quantity: number) => quantity.toString() },
+    { 
+      title: 'Quantity', 
+      dataIndex: 'quantity', 
+      key: 'quantity',
+      render: (quantity: number) => (
+        <Space>
+          {quantity === 0 ? (
+            <Tag color="red">Out of Stock</Tag>
+          ) : quantity < 5 ? (
+            <Space>
+              {quantity}
+              <Tag color="orange">Low Stock</Tag>
+            </Space>
+          ) : (
+            quantity
+          )}
+        </Space>
+      ),
+    },
     { title: 'Origin', dataIndex: 'origin', key: 'origin' },
     {
       title: 'Actions',
@@ -229,6 +275,26 @@ export default function ItemsManagementPage() {
     <PageLayout layout="full-width">
       <Title level={2}>Items Management</Title>
       <Text>Manage your inventory by adding, viewing, and selling items.</Text>
+      {items && (items.some(item => item.quantity < 5 && item.quantity > 0) || items.some(item => item.quantity === 0)) && (
+  <Space direction="vertical" style={{ width: '100%', margin: '16px 0' }}>
+    {items.some(item => item.quantity === 0) && (
+      <Alert
+        message="Out of Stock Alert"
+        description="Some items are out of stock. Please restock these items."
+        type="error"
+        showIcon
+      />
+    )}
+    {items.some(item => item.quantity < 5 && item.quantity > 0) && (
+      <Alert
+        message="Low Stock Alert"
+        description="Some items are running low on stock (below 5 units). Please check the inventory."
+        type="warning"
+        showIcon
+      />
+    )}
+  </Space>
+)}
       <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)} style={{ margin: '20px 0' }}>
         Add Item
       </Button>
@@ -239,7 +305,51 @@ export default function ItemsManagementPage() {
           </Option>
         ))}
       </Select>
-      <Table columns={columns} dataSource={filteredItems} rowKey="id" />
+      <Select
+    placeholder="Filter by Stock Level"
+    onChange={handleStockFilter}
+    style={{ width: 200 }}
+    allowClear
+  >
+    <Option value="outOfStock">Out of Stock (0)</Option>
+    <Option value="low">Low Stock (Below 5)</Option>
+    <Option value="normal">Normal Stock (5 or more)</Option>
+  </Select>
+  <Table 
+  columns={columns} 
+  dataSource={filteredItems} 
+  rowKey="id"
+  onRow={(record) => ({
+    style: record.quantity === 0 
+      ? { backgroundColor: '#ffccc7' }
+      : record.quantity < 5 
+        ? { backgroundColor: '#fff7e6' }
+        : {}
+  })}
+  summary={(pageData) => {
+    const lowStockItems = pageData.filter(item => item.quantity > 0 && item.quantity < 5).length;
+    const outOfStockItems = pageData.filter(item => item.quantity === 0).length;
+    
+    return (lowStockItems > 0 || outOfStockItems > 0) ? (
+      <Table.Summary.Row>
+        <Table.Summary.Cell index={0} colSpan={9}> {/* Added index prop */}
+          <Space direction="vertical">
+            {outOfStockItems > 0 && (
+              <Text type="danger">
+                {`${outOfStockItems} item${outOfStockItems > 1 ? 's' : ''} out of stock`}
+              </Text>
+            )}
+            {lowStockItems > 0 && (
+              <Text type="warning">
+                {`${lowStockItems} item${lowStockItems > 1 ? 's' : ''} with low stock`}
+              </Text>
+            )}
+          </Space>
+        </Table.Summary.Cell>
+      </Table.Summary.Row>
+    ) : null;
+  }}
+/>
       <Modal title="Add New Item" visible={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={null}>
         <Form form={form} onFinish={handleAddItem} layout="vertical">
           <Form.Item name="name" label="Name" rules={[{ required: true, message: 'Please input the name!' }]}>

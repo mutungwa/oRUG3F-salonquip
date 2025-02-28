@@ -8,14 +8,21 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useSnackbar } from 'notistack'
 import { useEffect, useState } from 'react'
 
+interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+interface AuthError extends Error {
+  code?: string;
+  statusCode?: number;
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const { enqueueSnackbar } = useSnackbar()
-
   const searchParams = useSearchParams()
-
   const [isLoading, setLoading] = useState(false)
-
   const [form] = Form.useForm()
 
   const errorKey = searchParams.get('error')
@@ -42,18 +49,63 @@ export default function LoginPage() {
     }
   }, [])
 
-  const handleSubmit = async (values: any) => {
+  const getErrorMessage = (error: AuthError): string => {
+    if (error.code === 'INVALID_CREDENTIALS') {
+      return 'Invalid email or password'
+    }
+    if (error.statusCode === 429) {
+      return 'Too many login attempts. Please try again later'
+    }
+    return error.message || 'An unexpected error occurred'
+  }
+
+  const handleSubmit = async (values: LoginCredentials) => {
     setLoading(true)
+    form.validateFields() // Ensure all fields are valid
 
     try {
-      await signIn('credentials', {
-        email: values.email,
+      // Sanitize inputs
+      const sanitizedValues = {
+        email: values.email?.trim().toLowerCase(),
         password: values.password,
-        callbackUrl: '/home',
-      })
-    } catch (error) {
-      enqueueSnackbar(`Could not login: ${error.message}`, { variant: 'error' })
+      }
 
+      const signInResult = await signIn('credentials', {
+        ...sanitizedValues,
+        callbackUrl: '/home',
+        redirect: false,
+      })
+
+      if (signInResult?.error) {
+        throw new Error(signInResult.error)
+      }
+
+      if (signInResult?.url) {
+        router.push(signInResult.url)
+      }
+
+    } catch (error: any) {
+      const errorMessage = getErrorMessage(error as AuthError)
+      
+      enqueueSnackbar(`Login failed: ${errorMessage}`, {
+        variant: 'error',
+        preventDuplicate: true,
+      })
+
+      // Log error for debugging
+      console.error('Login error:', {
+        message: error.message,
+        code: error.code,
+      })
+
+      // Reset password field on error
+      form.setFields([
+        {
+          name: 'password',
+          value: '',
+        },
+      ])
+    } finally {
       setLoading(false)
     }
   }
@@ -80,13 +132,19 @@ export default function LoginPage() {
           onFinish={handleSubmit}
           layout="vertical"
           requiredMark={false}
+          autoComplete="off"
         >
           <Form.Item
             label="Email"
             name="email"
             rules={[{ required: true, message: 'Email is required' }]}
           >
-            <Input type="email" placeholder="Your email" autoComplete="email" />
+            <Input 
+              type="email" 
+              placeholder="Your email" 
+              autoComplete="email"
+              disabled={isLoading}
+            />
           </Form.Item>
 
           <Form.Item
@@ -98,6 +156,7 @@ export default function LoginPage() {
               type="password"
               placeholder="Your password"
               autoComplete="current-password"
+              disabled={isLoading}
             />
           </Form.Item>
 
@@ -107,6 +166,7 @@ export default function LoginPage() {
                 type="link"
                 onClick={() => router.push('/reset-password')}
                 style={{ padding: 0, margin: 0 }}
+                disabled={isLoading}
               >
                 Forgot password?
               </Button>
@@ -114,7 +174,13 @@ export default function LoginPage() {
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" block loading={isLoading}>
+            <Button 
+              type="primary" 
+              htmlType="submit" 
+              block 
+              loading={isLoading}
+              disabled={isLoading}
+            >
               Sign in
             </Button>
           </Form.Item>
@@ -124,6 +190,7 @@ export default function LoginPage() {
           ghost
           style={{ border: 'none' }}
           onClick={() => router.push('/register')}
+          disabled={isLoading}
         >
           <Flex gap={'small'} justify="center">
             <Typography.Text type="secondary">No account?</Typography.Text>{' '}
