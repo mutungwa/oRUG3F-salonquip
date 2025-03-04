@@ -13,17 +13,21 @@ import {
   Typography,
   Tag,
   Input,
+  Card,
+  Tabs,
 } from 'antd'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import isBetween from 'dayjs/plugin/isBetween'
 import { useSnackbar } from 'notistack'
 import { useState, useMemo } from 'react'
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
 
 dayjs.extend(isBetween)
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
+const { TabPane } = Tabs
 
 export default function StockManagementPage() {
   const { enqueueSnackbar } = useSnackbar()
@@ -203,8 +207,71 @@ export default function StockManagementPage() {
     },
   ]
 
+  const salesTrendData = filteredData.map(item => ({
+    date: dayjs(item.sales[0].saleDate).format('YYYY-MM-DD'),
+    totalSold: item.sales.reduce((acc, sale) => acc + sale.quantitySold, 0),
+    totalProfit: item.sales.reduce((acc, sale) => acc + sale.profit, 0),
+  }));
+
+  const branchPerformanceData = itemsWithSales?.reduce((acc, item) => {
+    item.sales.forEach(sale => {
+      const branch = acc.find(b => b.branchName === sale.branchName);
+      if (branch) {
+        branch.totalSold += sale.quantitySold;
+        branch.totalProfit += sale.profit;
+      } else {
+        acc.push({
+          branchName: sale.branchName,
+          totalSold: sale.quantitySold,
+          totalProfit: sale.profit,
+        });
+      }
+    });
+    return acc;
+  }, [] as { branchName: string; totalSold: number; totalProfit: number; }[]);
+
   return (
     <PageLayout layout="full-width">
+      <Row justify="center">
+        <Col span={24}>
+          <Card>
+            <Tabs defaultActiveKey="1">
+              <TabPane tab="Sales Trend" key="1">
+                <LineChart
+                  width={500}
+                  height={300}
+                  data={salesTrendData}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="totalSold" stroke="#8884d8" />
+                  <Line type="monotone" dataKey="totalProfit" stroke="#82ca9d" />
+                </LineChart>
+              </TabPane>
+              <TabPane tab="Branch Performance" key="2">
+                <BarChart
+                  width={500}
+                  height={300}
+                  data={branchPerformanceData}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="branchName" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="totalSold" fill="#8884d8" />
+                  <Bar dataKey="totalProfit" fill="#82ca9d" />
+                </BarChart>
+              </TabPane>
+            </Tabs>
+          </Card>
+        </Col>
+      </Row>
       <Row justify="center" style={{ marginBottom: '20px' }}>
         <Col span={24}>
           <Title level={2}>Sales Management</Title>

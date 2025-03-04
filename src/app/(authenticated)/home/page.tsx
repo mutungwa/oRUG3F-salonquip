@@ -16,14 +16,16 @@ import {
   Tabs,
 } from 'antd'
 import { SwapOutlined, SearchOutlined } from '@ant-design/icons'
-const { Title, Text } = Typography
-const { Option } = Select
 import { useUserContext } from '@/core/context'
 import { useRouter, useParams } from 'next/navigation'
 import { useSnackbar } from 'notistack'
 import dayjs from 'dayjs'
 import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+
+const { Title, Text } = Typography
+const { Option } = Select
 
 const { TabPane } = Tabs
 
@@ -249,11 +251,19 @@ export default function HomePage() {
       <Card style={{ marginBottom: '20px' }}>
         <Tabs defaultActiveKey="1">
           <TabPane tab="Total Items in Branches" key="1">
-            <ul>
-              {totalItemsInBranches?.map(branch => (
-                <li key={branch.branchName}>{branch.branchName}: {branch.totalItems} items</li>
-              ))}
-            </ul>
+            <BarChart
+              width={500}
+              height={300}
+              data={totalItemsInBranches}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="branchName" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="totalItems" fill="#8884d8" />
+            </BarChart>
           </TabPane>
           <TabPane tab="Recent Transfers" key="2">
             <ul>
