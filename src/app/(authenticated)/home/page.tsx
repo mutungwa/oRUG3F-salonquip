@@ -12,6 +12,8 @@ import {
   InputNumber,
   Input,
   message,
+  Card,
+  Tabs,
 } from 'antd'
 import { SwapOutlined, SearchOutlined } from '@ant-design/icons'
 const { Title, Text } = Typography
@@ -22,6 +24,8 @@ import { useSnackbar } from 'notistack'
 import dayjs from 'dayjs'
 import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
+
+const { TabPane } = Tabs
 
 export default function HomePage() {
   const router = useRouter()
@@ -229,8 +233,46 @@ export default function HomePage() {
     },
   ]
 
+  const totalItemsInBranches = branches?.map(branch => ({
+    branchName: branch.name,
+    totalItems: items?.filter(item => item.branchId === branch.id).reduce((acc, item) => acc + item.quantity, 0) || 0,
+  }));
+
+  const recentTransfers = [];
+  // TODO: Fetch recent transfers data
+
+  const lowStockThreshold = 10;
+  const lowStockItems = items?.filter(item => item.quantity < lowStockThreshold);
+
   return (
     <PageLayout layout="full-width">
+      <Card style={{ marginBottom: '20px' }}>
+        <Tabs defaultActiveKey="1">
+          <TabPane tab="Total Items in Branches" key="1">
+            <ul>
+              {totalItemsInBranches?.map(branch => (
+                <li key={branch.branchName}>{branch.branchName}: {branch.totalItems} items</li>
+              ))}
+            </ul>
+          </TabPane>
+          <TabPane tab="Recent Transfers" key="2">
+            <ul>
+              {recentTransfers.map((transfer, index) => (
+                <li key={index}>{transfer}</li>
+              ))}
+            </ul>
+          </TabPane>
+          <TabPane tab="Low Stock Levels" key="3">
+            <ul>
+              {lowStockItems?.map(item => (
+                <li key={item.id}>
+                  {item.name} - {item.description} - {item.category} - {item.quantity} in stock
+                </li>
+              ))}
+            </ul>
+          </TabPane>
+        </Tabs>
+      </Card>
       <Title level={2} style={{ textAlign: 'center' }}>
         Inventory Management
       </Title>

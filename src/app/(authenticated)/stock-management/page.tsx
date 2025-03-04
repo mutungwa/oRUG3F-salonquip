@@ -101,7 +101,7 @@ export default function StockManagementPage() {
     ].join(',');
 
     const csvRows = filteredData.map(item => {
-      const branchNames = [...new Set(item.sales.map((sale) => sale.branchName))];
+      const branchNames = [...new Set(item.sales.map((sale) => sale.branchName))]
       const totalSold = item.sales.reduce((acc, sale) => acc + sale.quantitySold, 0);
       const totalProfit = item.sales.reduce((acc, sale) => acc + sale.profit, 0);
       const lastSaleDate = item.sales.reduce((latest, sale) =>
@@ -207,8 +207,8 @@ export default function StockManagementPage() {
     <PageLayout layout="full-width">
       <Row justify="center" style={{ marginBottom: '20px' }}>
         <Col span={24}>
-          <Title level={2}>Stock Management</Title>
-          <Text>View all items with recorded sales.</Text>
+          <Title level={2}>Sales Management</Title>
+          <Text>View and manage all sales records.</Text>
         </Col>
       </Row>
       <Row justify="center" style={{ marginBottom: '20px' }}>
