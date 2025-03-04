@@ -2,7 +2,7 @@
 import { Api } from '@/core/trpc'
 import { AppHeader } from '@/designSystem/ui/AppHeader'
 import { User } from '@prisma/client'
-import { Button, Flex, Form, Input, Typography } from 'antd'
+import { Button, Flex, Form, Input, Typography, Spin } from 'antd'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useSnackbar } from 'notistack'
@@ -18,6 +18,7 @@ export default function RegisterPage() {
   const { enqueueSnackbar } = useSnackbar()
   const [form] = Form.useForm()
   const [isLoading, setLoading] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
 
   const { mutateAsync: registerUser } = Api.authentication.register.useMutation()
 
@@ -54,6 +55,7 @@ export default function RegisterPage() {
           throw new Error('Authentication failed after registration')
         }
 
+        setIsRedirecting(true)
         router.push('/home')
       } catch (signInError) {
         enqueueSnackbar('Registration successful but login failed. Please try logging in.', {
@@ -81,7 +83,6 @@ export default function RegisterPage() {
           value: '',
         },
       ])
-    } finally {
       setLoading(false)
     }
   }
@@ -99,58 +100,74 @@ export default function RegisterPage() {
       >
         <AppHeader description="Welcome!" />
 
-        <Form
-          form={form}
-          onFinish={handleSubmit}
-          layout="vertical"
-          autoComplete="off"
-          requiredMark={false}
-        >
-          <Form.Item
-            label="Email"
-            name="email"
-            rules={[{ required: true, message: 'Email is required' }]}
+        {isRedirecting ? (
+          <Flex vertical align="center" gap="middle">
+            <Spin size="large" />
+            <Typography.Text>Setting up your account...</Typography.Text>
+          </Flex>
+        ) : (
+          <Form
+            form={form}
+            onFinish={handleSubmit}
+            layout="vertical"
+            autoComplete="off"
+            requiredMark={false}
           >
-            <Input type="email" placeholder="Your email" autoComplete="email" />
-          </Form.Item>
-          <Form.Item
-            name="name"
-            rules={[{ required: true, message: 'Name is required' }]}
-            label="Name"
-          >
-            <Input placeholder="Your name" />
-          </Form.Item>
-
-          <Form.Item
-            label="Password"
-            name="password"
-            rules={[{ required: true, message: 'Password is required' }]}
-          >
-            <Input.Password
-              type="password"
-              placeholder="Your password"
-              autoComplete="new-password"
-            />
-          </Form.Item>
-
-          <Form.Item>
-            <Button 
-              type="primary" 
-              htmlType="submit" 
-              loading={isLoading} 
-              block
-              disabled={isLoading}
+            <Form.Item
+              label="Email"
+              name="email"
+              rules={[{ required: true, message: 'Email is required' }]}
             >
-              Register
-            </Button>
-          </Form.Item>
-        </Form>
+              <Input 
+                type="email" 
+                placeholder="Your email" 
+                autoComplete="email"
+                disabled={isLoading} 
+              />
+            </Form.Item>
+            <Form.Item
+              name="name"
+              rules={[{ required: true, message: 'Name is required' }]}
+              label="Name"
+            >
+              <Input 
+                placeholder="Your name"
+                disabled={isLoading}
+              />
+            </Form.Item>
+
+            <Form.Item
+              label="Password"
+              name="password"
+              rules={[{ required: true, message: 'Password is required' }]}
+            >
+              <Input.Password
+                type="password"
+                placeholder="Your password"
+                autoComplete="new-password"
+                disabled={isLoading}
+              />
+            </Form.Item>
+
+            <Form.Item>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                loading={isLoading} 
+                block
+                disabled={isLoading}
+              >
+                {isLoading ? 'Creating account...' : 'Register'}
+              </Button>
+            </Form.Item>
+          </Form>
+        )}
 
         <Button
           ghost
           style={{ border: 'none' }}
           onClick={() => router.push('/login')}
-          disabled={isLoading}
+          disabled={isLoading || isRedirecting}
         >
           <Flex gap={'small'} justify="center">
             <Typography.Text type="secondary">Have an account?</Typography.Text>{' '}

@@ -2,7 +2,7 @@
 
 import { Configuration } from '@/core/configuration'
 import { AppHeader } from '@/designSystem/ui/AppHeader'
-import { Button, Flex, Form, Input, Typography } from 'antd'
+import { Button, Flex, Form, Input, Typography, Spin } from 'antd'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSnackbar } from 'notistack'
@@ -23,6 +23,7 @@ export default function LoginPage() {
   const { enqueueSnackbar } = useSnackbar()
   const searchParams = useSearchParams()
   const [isLoading, setLoading] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
   const [form] = Form.useForm()
 
   const errorKey = searchParams.get('error')
@@ -81,6 +82,7 @@ export default function LoginPage() {
       }
 
       if (signInResult?.url) {
+        setIsRedirecting(true)
         router.push(signInResult.url)
       }
 
@@ -92,20 +94,17 @@ export default function LoginPage() {
         preventDuplicate: true,
       })
 
-      // Log error for debugging
       console.error('Login error:', {
         message: error.message,
         code: error.code,
       })
 
-      // Reset password field on error
       form.setFields([
         {
           name: 'password',
           value: '',
         },
       ])
-    } finally {
       setLoading(false)
     }
   }
@@ -127,70 +126,77 @@ export default function LoginPage() {
           <Typography.Text type="danger">{errorMessage}</Typography.Text>
         )}
 
-        <Form
-          form={form}
-          onFinish={handleSubmit}
-          layout="vertical"
-          requiredMark={false}
-          autoComplete="off"
-        >
-          <Form.Item
-            label="Email"
-            name="email"
-            rules={[{ required: true, message: 'Email is required' }]}
+        {isRedirecting ? (
+          <Flex vertical align="center" gap="middle">
+            <Spin size="large" />
+            <Typography.Text>Logging you in...</Typography.Text>
+          </Flex>
+        ) : (
+          <Form
+            form={form}
+            onFinish={handleSubmit}
+            layout="vertical"
+            requiredMark={false}
+            autoComplete="off"
           >
-            <Input 
-              type="email" 
-              placeholder="Your email" 
-              autoComplete="email"
-              disabled={isLoading}
-            />
-          </Form.Item>
+            <Form.Item
+              label="Email"
+              name="email"
+              rules={[{ required: true, message: 'Email is required' }]}
+            >
+              <Input 
+                type="email" 
+                placeholder="Your email" 
+                autoComplete="email"
+                disabled={isLoading}
+              />
+            </Form.Item>
 
-          <Form.Item
-            label="Password"
-            name="password"
-            rules={[{ required: true, message: 'Password is required' }]}
-          >
-            <Input.Password
-              type="password"
-              placeholder="Your password"
-              autoComplete="current-password"
-              disabled={isLoading}
-            />
-          </Form.Item>
+            <Form.Item
+              label="Password"
+              name="password"
+              rules={[{ required: true, message: 'Password is required' }]}
+            >
+              <Input.Password
+                type="password"
+                placeholder="Your password"
+                autoComplete="current-password"
+                disabled={isLoading}
+              />
+            </Form.Item>
 
-          <Form.Item>
-            <Flex justify="end">
-              <Button
-                type="link"
-                onClick={() => router.push('/reset-password')}
-                style={{ padding: 0, margin: 0 }}
+            <Form.Item>
+              <Flex justify="end">
+                <Button
+                  type="link"
+                  onClick={() => router.push('/reset-password')}
+                  style={{ padding: 0, margin: 0 }}
+                  disabled={isLoading}
+                >
+                  Forgot password?
+                </Button>
+              </Flex>
+            </Form.Item>
+
+            <Form.Item>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                block 
+                loading={isLoading}
                 disabled={isLoading}
               >
-                Forgot password?
+                {isLoading ? 'Signing in...' : 'Sign in'}
               </Button>
-            </Flex>
-          </Form.Item>
-
-          <Form.Item>
-            <Button 
-              type="primary" 
-              htmlType="submit" 
-              block 
-              loading={isLoading}
-              disabled={isLoading}
-            >
-              Sign in
-            </Button>
-          </Form.Item>
-        </Form>
+            </Form.Item>
+          </Form>
+        )}
 
         <Button
           ghost
           style={{ border: 'none' }}
           onClick={() => router.push('/register')}
-          disabled={isLoading}
+          disabled={isLoading || isRedirecting}
         >
           <Flex gap={'small'} justify="center">
             <Typography.Text type="secondary">No account?</Typography.Text>{' '}

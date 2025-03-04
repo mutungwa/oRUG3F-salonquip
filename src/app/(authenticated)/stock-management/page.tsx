@@ -15,6 +15,8 @@ import {
   Input,
   Card,
   Tabs,
+  Statistic,
+  Divider,
 } from 'antd'
 import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
@@ -230,6 +232,36 @@ export default function StockManagementPage() {
     return acc;
   }, [] as { branchName: string; totalSold: number; totalProfit: number; }[]);
 
+  // Calculate total profit from filtered data
+  const totalProfit = useMemo(() => {
+    if (!filteredData) return 0;
+    return filteredData.reduce((acc, item) => {
+      const itemProfit = item.sales.reduce((saleAcc, sale) => saleAcc + sale.profit, 0);
+      return acc + itemProfit;
+    }, 0);
+  }, [filteredData]);
+
+  // Calculate branch-wise profits
+  const branchProfits = useMemo(() => {
+    if (!filteredData) return [];
+    
+    const branchProfitMap = new Map<string, number>();
+    
+    filteredData.forEach(item => {
+      item.sales.forEach(sale => {
+        const currentProfit = branchProfitMap.get(sale.branchName) || 0;
+        branchProfitMap.set(sale.branchName, currentProfit + sale.profit);
+      });
+    });
+    
+    return Array.from(branchProfitMap.entries())
+      .map(([branchName, profit]) => ({
+        branchName,
+        profit
+      }))
+      .sort((a, b) => b.profit - a.profit); // Sort by profit in descending order
+  }, [filteredData]);
+
   return (
     <PageLayout layout="full-width">
       <Row justify="center">
@@ -267,6 +299,63 @@ export default function StockManagementPage() {
                   <Bar dataKey="totalSold" fill="#8884d8" />
                   <Bar dataKey="totalProfit" fill="#82ca9d" />
                 </BarChart>
+              </TabPane>
+              <TabPane tab="Total Profit Summary" key="3">
+                <div style={{ 
+                  padding: '40px', 
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '20px'
+                }}>
+                  <Title level={3}>Overall Profit Summary</Title>
+                  
+                  {/* Overall Total Profit Card */}
+                  <Card style={{ width: '100%', marginBottom: '20px' }}>
+                    <Statistic
+                      title={<Title level={4}>Total Profit (All Branches)</Title>}
+                      value={totalProfit}
+                      precision={2}
+                      prefix="KES"
+                      valueStyle={{ color: '#3f8600', fontSize: '24px' }}
+                    />
+                    {dateRange && dateRange[0] && dateRange[1] && (
+                      <Text type="secondary" style={{ marginTop: '10px', display: 'block' }}>
+                        From {dateRange[0].format('DD-MM-YYYY')} to {dateRange[1].format('DD-MM-YYYY')}
+                      </Text>
+                    )}
+                  </Card>
+
+                  {/* Branch-wise Profit Cards */}
+                  <div style={{ width: '100%' }}>
+                    <Title level={4} style={{ marginBottom: '20px', textAlign: 'left' }}>
+                      Profit by Branch
+                    </Title>
+                    <Row gutter={[16, 16]}>
+                      {branchProfits.map((branch) => (
+                        <Col xs={24} sm={12} md={8} key={branch.branchName}>
+                          <Card>
+                            <Statistic
+                              title={branch.branchName}
+                              value={branch.profit}
+                              precision={2}
+                              prefix="KES"
+                              valueStyle={{ color: '#3f8600' }}
+                            />
+                          </Card>
+                        </Col>
+                      ))}
+                    </Row>
+                  </div>
+
+                  <div style={{ marginTop: '20px' }}>
+                    <Text type="secondary">
+                      * This summary reflects the total profit from all sales
+                      {searchText && ' (filtered by current search)'}
+                    </Text>
+                  </div>
+                </div>
               </TabPane>
             </Tabs>
           </Card>
