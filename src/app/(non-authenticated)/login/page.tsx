@@ -3,6 +3,7 @@
 import { Configuration } from '@/core/configuration'
 import { AppHeader } from '@/designSystem/ui/AppHeader'
 import { Button, Flex, Form, Input, Typography, Spin } from 'antd'
+import { UserOutlined, LockOutlined } from '@ant-design/icons'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSnackbar } from 'notistack'
@@ -149,6 +150,7 @@ export default function LoginPage() {
                 placeholder="Your email" 
                 autoComplete="email"
                 disabled={isLoading}
+                prefix={<UserOutlined style={{ color: 'rgba(0,0,0,.45)' }} />}
               />
             </Form.Item>
 
@@ -162,6 +164,7 @@ export default function LoginPage() {
                 placeholder="Your password"
                 autoComplete="current-password"
                 disabled={isLoading}
+                prefix={<LockOutlined style={{ color: 'rgba(0,0,0,.45)' }} />}
               />
             </Form.Item>
 

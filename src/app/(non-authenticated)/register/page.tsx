@@ -3,6 +3,7 @@ import { Api } from '@/core/trpc'
 import { AppHeader } from '@/designSystem/ui/AppHeader'
 import { User } from '@prisma/client'
 import { Button, Flex, Form, Input, Typography, Spin } from 'antd'
+import { UserOutlined, LockOutlined, IdcardOutlined } from '@ant-design/icons'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useSnackbar } from 'notistack'
@@ -122,7 +123,8 @@ export default function RegisterPage() {
                 type="email" 
                 placeholder="Your email" 
                 autoComplete="email"
-                disabled={isLoading} 
+                disabled={isLoading}
+                prefix={<UserOutlined style={{ color: 'rgba(0,0,0,.45)' }} />}
               />
             </Form.Item>
             <Form.Item
@@ -133,6 +135,7 @@ export default function RegisterPage() {
               <Input 
                 placeholder="Your name"
                 disabled={isLoading}
+                prefix={<IdcardOutlined style={{ color: 'rgba(0,0,0,.45)' }} />}
               />
             </Form.Item>
 
@@ -146,6 +149,7 @@ export default function RegisterPage() {
                 placeholder="Your password"
                 autoComplete="new-password"
                 disabled={isLoading}
+                prefix={<LockOutlined style={{ color: 'rgba(0,0,0,.45)' }} />}
               />
             </Form.Item>
 
