@@ -1,6 +1,6 @@
 import { EmailType } from './internal/email.type'
-import { MailjetProvider } from './internal/providers/mailjet/mailjet.provider'
 import { NodemailerProvider } from './internal/providers/nodemailer/nodemailer.provider'
+import { ResendProvider } from './internal/providers/resend/resend.provider'
 import { Provider } from './internal/providers/provider'
 
 type SendOptions = {
@@ -21,7 +21,7 @@ export class Service {
     const isProduction = process.env.NODE_ENV === 'production'
 
     if (isProduction) {
-      this.provider = new MailjetProvider()
+      this.provider = new ResendProvider()
     } else {
       this.provider = new NodemailerProvider()
     }
@@ -47,8 +47,4 @@ export class Service {
   }
 }
 
-class Singleton {
-  static service = new Service()
-}
-
-export const EmailService = Singleton.service
+export const EmailService = new Service()

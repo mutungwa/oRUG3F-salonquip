@@ -61,6 +61,7 @@
     "react-dom": "^18.3.0",
     "react-error-boundary": "^5.0.0",
     "recharts": "^2.15.1",
+    "resend": "^4.1.2",
     "sass": "^1.62.1",
     "server-only": "^0.0.1",
     "stripe": "^15.12.0",
