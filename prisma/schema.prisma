@@ -109,6 +109,7 @@ model Item {
   imageUrl       String?
   branchId       String
   branch         Branch?         @relation(fields: [branchId], references: [id], name: "branch")
+  deleted        Boolean         @default(false)
   sales          Sale[]          @relation("item")
   stockTransfers StockTransfer[] @relation("item")
   dateCreated    DateTime        @default(now())

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Prisma } from '@prisma/client'
 import {
   Typography,
@@ -14,6 +14,7 @@ import {
   message,
   Card,
   Tabs,
+  DatePicker,
 } from 'antd'
 import { SwapOutlined, SearchOutlined } from '@ant-design/icons'
 import { useUserContext } from '@/core/context'
@@ -28,6 +29,8 @@ const { Title, Text } = Typography
 const { Option } = Select
 
 const { TabPane } = Tabs
+
+const { RangePicker } = DatePicker
 
 export default function HomePage() {
   const router = useRouter()
@@ -76,6 +79,54 @@ export default function HomePage() {
   const { mutateAsync: transferStock } = Api.stockTransfer.create.useMutation()
   const { mutateAsync: updateItem } = Api.item.update.useMutation()
   const { mutateAsync: createItem } = Api.item.create.useMutation()
+
+  const { data: salesData, isLoading: salesLoading } = Api.sale.findMany.useQuery({});
+
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
+
+  const aggregatedSalesData = useMemo(() => {
+    if (!salesData) return [];
+
+    const salesMap = new Map();
+
+    salesData.forEach(sale => {
+      if (salesMap.has(sale.itemName)) {
+        salesMap.set(sale.itemName, salesMap.get(sale.itemName) + sale.quantitySold);
+      } else {
+        salesMap.set(sale.itemName, sale.quantitySold);
+      }
+    });
+
+    return Array.from(salesMap.entries()).map(([name, totalSold]) => ({
+      name,
+      totalSold,
+    }));
+  }, [salesData]);
+
+  const filteredSalesData = useMemo(() => {
+    if (!salesData || !dateRange || !dateRange[0] || !dateRange[1]) return aggregatedSalesData;
+
+    const startDate = dateRange[0].startOf('day').toISOString();
+    const endDate = dateRange[1].endOf('day').toISOString();
+
+    const filteredSalesMap = new Map();
+
+    salesData.forEach(sale => {
+      const saleDate = dayjs(sale.saleDate).toISOString();
+      if (saleDate >= startDate && saleDate <= endDate) {
+        if (filteredSalesMap.has(sale.itemName)) {
+          filteredSalesMap.set(sale.itemName, filteredSalesMap.get(sale.itemName) + sale.quantitySold);
+        } else {
+          filteredSalesMap.set(sale.itemName, sale.quantitySold);
+        }
+      }
+    });
+
+    return Array.from(filteredSalesMap.entries()).map(([name, totalSold]) => ({
+      name,
+      totalSold,
+    }));
+  }, [salesData, dateRange]);
 
   const handleBranchChange = (value: string) => {
     setSelectedBranch(value)
@@ -280,6 +331,27 @@ export default function HomePage() {
                 </li>
               ))}
             </ul>
+          </TabPane>
+          <TabPane tab="Sales Comparison" key="4">
+            <RangePicker onChange={setDateRange} style={{ marginBottom: '20px' }} />
+            <BarChart width={600} height={300} data={filteredSalesData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="totalSold" fill="#8884d8" />
+            </BarChart>
+            <div style={{ marginTop: '20px' }}>
+              <Title level={4}>Sales Summary</Title>
+              <Text>
+                Most Sold Item: {filteredSalesData.length > 0 ? filteredSalesData.reduce((max, item) => item.totalSold > max.totalSold ? item : max, filteredSalesData[0]).name : 'N/A'}
+              </Text>
+              <br />
+              <Text>
+                Least Sold Item: {filteredSalesData.length > 0 ? filteredSalesData.reduce((min, item) => item.totalSold < min.totalSold ? item : min, filteredSalesData[0]).name : 'N/A'}
+              </Text>
+            </div>
           </TabPane>
         </Tabs>
       </Card>
