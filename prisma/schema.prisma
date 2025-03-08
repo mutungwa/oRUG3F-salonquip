@@ -98,22 +98,23 @@ model Branch {
 
 /// @@allow('all', true)
 model Item {
-  id             String          @id() @default(uuid())
-  name           String
-  description    String?
-  category       String
-  price          Float
-  sku            String
-  quantity       Float
-  origin         String
-  imageUrl       String?
-  branchId       String
-  branch         Branch?         @relation(fields: [branchId], references: [id], name: "branch")
-  deleted        Boolean         @default(false)
-  sales          Sale[]          @relation("item")
-  stockTransfers StockTransfer[] @relation("item")
-  dateCreated    DateTime        @default(now())
-  dateUpdated    DateTime        @default(now()) @updatedAt()
+  id                String          @id() @default(uuid())
+  name              String
+  description       String?
+  category          String
+  price             Float
+  sku               String
+  quantity          Float
+  origin            String
+  imageUrl          String?
+  branchId          String
+  branch            Branch?         @relation(fields: [branchId], references: [id], name: "branch")
+  deleted           Boolean         @default(false)
+  minimumStockLevel Float           @default(0)
+  sales             Sale[]          @relation("item")
+  stockTransfers    StockTransfer[] @relation("item")
+  dateCreated       DateTime        @default(now())
+  dateUpdated       DateTime        @default(now()) @updatedAt()
 }
 
 /// @@allow('all', true)

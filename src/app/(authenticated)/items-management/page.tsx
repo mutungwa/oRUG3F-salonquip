@@ -78,6 +78,7 @@ export default function ItemsManagementPage() {
           origin: values.origin,
           imageUrl: imageUrl?.url || '',
           branchId: values.branch,
+          minimumStockLevel: values.minimumStockLevel,
         },
       });
       enqueueSnackbar('Item added successfully', { variant: 'success' });
@@ -170,6 +171,7 @@ export default function ItemsManagementPage() {
           origin: values.origin,
           imageUrl: imageUrl?.url || currentItem.imageUrl,
           branchId: values.branch,
+          minimumStockLevel: values.minimumStockLevel,
         },
       });
       enqueueSnackbar('Item updated successfully', { variant: 'success' });
@@ -275,7 +277,7 @@ const handleStockFilter = (value: string | null) => {
     <PageLayout layout="full-width">
       <Title level={2}>Items Management</Title>
       <Text>Manage your inventory by adding, viewing, and selling items.</Text>
-      {items && (items.some(item => item.quantity < 5 && item.quantity > 0) || items.some(item => item.quantity === 0)) && (
+      {items && (items.some(item => item.quantity < item.minimumStockLevel && item.quantity > 0) || items.some(item => item.quantity === 0)) && (
   <Space direction="vertical" style={{ width: '100%', margin: '16px 0' }}>
     {items.some(item => item.quantity === 0) && (
       <Alert
@@ -285,10 +287,10 @@ const handleStockFilter = (value: string | null) => {
         showIcon
       />
     )}
-    {items.some(item => item.quantity < 5 && item.quantity > 0) && (
+    {items.some(item => item.quantity < item.minimumStockLevel && item.quantity > 0) && (
       <Alert
         message="Low Stock Alert"
-        description="Some items are running low on stock (below 5 units). Please check the inventory."
+        description="Some items are running low on stock. Please check the inventory."
         type="warning"
         showIcon
       />
@@ -385,6 +387,9 @@ const handleStockFilter = (value: string | null) => {
           <Form.Item name="image" label="Image">
             <Input type="file" />
           </Form.Item>
+          <Form.Item name="minimumStockLevel" label="Minimum Stock Level" rules={[{ required: true, message: 'Please input the minimum stock level!' }]}>
+            <InputNumber min={0} />
+          </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit">
               Add Item
@@ -426,6 +431,9 @@ const handleStockFilter = (value: string | null) => {
           </Form.Item>
           <Form.Item name="image" label="Image">
             <Input type="file" />
+          </Form.Item>
+          <Form.Item name="minimumStockLevel" label="Minimum Stock Level" rules={[{ required: true, message: 'Please input the minimum stock level!' }]}>
+            <InputNumber min={0} />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit">
