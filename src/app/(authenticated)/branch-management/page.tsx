@@ -16,6 +16,19 @@ export default function BranchManagementPage() {
   const isAdmin = checkRole('admin')
   const { enqueueSnackbar } = useSnackbar()
   
+  // Redirect non-admin users to home page
+  useEffect(() => {
+    if (!isAdmin) {
+      router.push('/home')
+      enqueueSnackbar('You do not have permission to access this page', { variant: 'error' })
+    }
+  }, [isAdmin, router, enqueueSnackbar])
+
+  // If not admin, don't render the page content
+  if (!isAdmin) {
+    return null
+  }
+  
   const { mutateAsync: createBranch } = Api.branch.create.useMutation()
   const { mutateAsync: updateBranch } = Api.branch.update.useMutation()
   const { mutateAsync: deleteBranch } = Api.branch.delete.useMutation()
@@ -66,107 +79,96 @@ export default function BranchManagementPage() {
     }
   }
 
+  const columns = [
+    {
+      title: 'Name',
+      dataIndex: 'name',
+      key: 'name',
+      width: '30%',
+    },
+    {
+      title: 'Location',
+      dataIndex: 'location',
+      key: 'location',
+      width: '30%',
+    },
+    {
+      title: 'Phone Number',
+      dataIndex: 'phoneNumber',
+      key: 'phoneNumber',
+      width: '20%',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: '20%',
+      render: (text, record) => (
+        <Space size="middle">
+          <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />
+          <Button icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
+        </Space>
+      ),
+    },
+  ]
+
   return (
     <PageLayout layout="full-width">
-      <Title level={2}>Branch Management</Title>
-      <Text>View and manage branches across different locations.</Text>
-      
-      {isAdmin && (
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => setIsFormVisible(true)}
-          style={{ margin: '20px 0' }}
-        >
-          Add Branch
-        </Button>
-      )}
-      
-      <Table
-        dataSource={branches}
-        columns={[
-          {
-            title: 'Name',
-            dataIndex: 'name',
-            key: 'name',
-          },
-          {
-            title: 'Location',
-            dataIndex: 'location',
-            key: 'location',
-          },
-          {
-            title: 'Phone Number',
-            dataIndex: 'phoneNumber',
-            key: 'phoneNumber',
-          },
-          {
-            title: 'Actions',
-            key: 'actions',
-            render: (_, record) => (
-              <Space size="middle">
-                {isAdmin && (
-                  <>
-                    <Button
-                      type="default"
-                      icon={<EditOutlined />}
-                      onClick={() => handleEdit(record)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      type="default"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={() => handleDelete(record.id)}
-                    >
-                      Delete
-                    </Button>
-                  </>
-                )}
-              </Space>
-            ),
-          },
-        ]}
-        loading={isLoading}
-        rowKey="id"
-      />
-      
-      <Modal
-        title="Add Branch"
-        visible={isFormVisible}
-        onCancel={() => setIsFormVisible(false)}
-        footer={null}
-      >
-        <Form form={form} layout="vertical" onFinish={onFinish}>
-          <Form.Item
-            label="Name"
-            name="name"
-            rules={[{ required: true, message: 'Please input the branch name!' }]}
+      <Row justify="center" style={{ marginTop: '20px' }}>
+        <Col xs={24} sm={18} md={12} lg={10} xl={8}>
+          <Title level={2}>Branch Management</Title>
+          <Text>Add new branches to manage different locations.</Text>
+          <Button type="primary" onClick={() => setIsFormVisible(true)} style={{ marginTop: '20px' }}>
+            Add Branch
+          </Button>
+          <Modal
+            title="Add Branch"
+            visible={isFormVisible}
+            onCancel={() => setIsFormVisible(false)}
+            footer={null}
           >
-            <Input placeholder="Branch Name" />
-          </Form.Item>
-          <Form.Item
-            label="Location"
-            name="location"
-            rules={[{ required: true, message: 'Please input the branch location!' }]}
-          >
-            <Input placeholder="Branch Location" />
-          </Form.Item>
-          <Form.Item
-            label="Phone Number"
-            name="phoneNumber"
-            rules={[{ required: true, message: 'Please input the branch phone number!' }]}
-          >
-            <Input placeholder="Branch Phone Number" />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>
-              Add Branch
-            </Button>
-          </Form.Item>
-        </Form>
-      </Modal>
+            <Form form={form} layout="vertical" onFinish={onFinish}>
+              <Form.Item
+                label="Name"
+                name="name"
+                rules={[{ required: true, message: 'Please input the branch name!' }]}
+              >
+                <Input placeholder="Branch Name" />
+              </Form.Item>
+              <Form.Item
+                label="Location"
+                name="location"
+                rules={[{ required: true, message: 'Please input the branch location!' }]}
+              >
+                <Input placeholder="Branch Location" />
+              </Form.Item>
+              <Form.Item
+                label="Phone Number"
+                name="phoneNumber"
+                rules={[{ required: true, message: 'Please input the branch phone number!' }]}
+              >
+                <Input placeholder="Branch Phone Number" />
+              </Form.Item>
+              <Form.Item>
+                <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>
+                  Add Branch
+                </Button>
+              </Form.Item>
+            </Form>
+          </Modal>
+        </Col>
+      </Row>
+      <Row justify="center" style={{ marginTop: '20px' }}>
+        <Col span={24}>
+          <Table
+            columns={columns}
+            dataSource={branches?.sort((a, b) => new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime())}
+            rowKey="id"
+            loading={isLoading}
+            pagination={{ pageSize: 10 }}
+            scroll={{ x: '100%' }}
+          />
+        </Col>
+      </Row>
       <Modal
         title="Edit Branch"
         visible={!!editingBranch}

@@ -1,5 +1,6 @@
 import "./item.zmodel"
 import "./branch.zmodel"
+import "./user.zmodel"
 
 model Sale {
     id            String    @id @default(uuid())
@@ -10,6 +11,9 @@ model Sale {
     item          Item?     @relation(fields: [itemId], references: [id], name:"item")
     branchId      String
     branch        Branch?   @relation(fields: [branchId], references: [id], name:"branch")
+    userId        String
+    user          User?     @relation(fields: [userId], references: [id], name:"sales")
+    userName      String
     itemName      String
     itemCategory  String
     branchName    String

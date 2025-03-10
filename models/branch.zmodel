@@ -1,6 +1,7 @@
-import "./item.zmodel"  
-import "./sale.zmodel"  
-import "./stockTransfer.zmodel"  
+
+ import "./item.zmodel"  
+ import "./sale.zmodel"  
+ import "./stockTransfer.zmodel"  
 
 model Branch {
 
@@ -15,9 +16,5 @@ items     Item[]    @relation("branch")
     stockTransfersAsToBranch StockTransfer[] @relation("toBranch")  
       dateCreated DateTime @default(now())
       dateUpdated DateTime @updatedAt  @default(now())
-      
-      @@allow("read", true)
-      @@allow("create", auth().roles?[name == 'admin'])
-      @@allow("update", auth().roles?[name == 'admin'])
-      @@allow("delete", auth().roles?[name == 'admin'])
+      @@allow("all", true)
 }

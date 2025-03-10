@@ -51,13 +51,20 @@ export default function AdminManagementPage() {
     refetch,
   } = Api.user.findMany.useQuery({ include: { admins: true, roles: true } })
   
-  // Add the missing sales data query
+  // Add the sales data query with debugging
   const {
     data: salesData,
     isLoading: isLoadingSales,
   } = Api.sale.findMany.useQuery({
     include: { user: true },
     orderBy: { saleDate: 'desc' },
+  }, {
+    onSuccess: (data) => {
+      console.log('Sales data fetched:', data);
+    },
+    onError: (error) => {
+      console.error('Error fetching sales data:', error);
+    }
   })
   
   const { mutateAsync: createUser } = Api.user.create.useMutation()
@@ -185,6 +192,8 @@ export default function AdminManagementPage() {
 
   // Define helper functions for sales tracking
   const getFilteredSales = () => {
+    console.log('getFilteredSales called, salesData:', salesData);
+    
     if (!salesData) return [];
     
     let filtered = salesData;
@@ -192,6 +201,7 @@ export default function AdminManagementPage() {
     // Filter by user
     if (selectedUser) {
       filtered = filtered.filter(sale => sale.userId === selectedUser);
+      console.log('Filtered by user:', selectedUser, 'results:', filtered.length);
     }
     
     // Filter by date range
@@ -203,8 +213,10 @@ export default function AdminManagementPage() {
         const saleDate = dayjs(sale.saleDate);
         return saleDate.isAfter(startDate) && saleDate.isBefore(endDate);
       });
+      console.log('Filtered by date range:', startDate.format('YYYY-MM-DD'), 'to', endDate.format('YYYY-MM-DD'), 'results:', filtered.length);
     }
     
+    console.log('Final filtered sales:', filtered);
     return filtered;
   };
 

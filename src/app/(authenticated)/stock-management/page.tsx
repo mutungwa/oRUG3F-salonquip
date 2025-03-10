@@ -372,7 +372,7 @@ export default function StockManagementPage() {
       <Row justify="center" style={{ marginBottom: '20px' }}>
         <Col span={24}>
           <Title level={2}>Sales Management</Title>
-          <Text>View sales records and track item performance.</Text>
+          <Text>View and manage all sales records.</Text>
         </Col>
       </Row>
       <Row justify="center" style={{ marginBottom: '20px' }}>

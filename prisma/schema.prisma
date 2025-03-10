@@ -51,6 +51,7 @@ model User {
   sessions         Session[]
   roles            Role[]
   admins           Admin[]   @relation("user")
+  sales            Sale[]    @relation("sales")
 }
 
 /// @@allow('all', auth().id == user.id)
@@ -83,20 +84,28 @@ model Admin {
 }
 
 /// @@allow('read', true)
-/// @@allow('create', auth().roles?[name == 'admin'])
+/// @@allow('create', true)
 /// @@allow('update', auth().roles?[name == 'admin'])
 /// @@allow('delete', auth().roles?[name == 'admin'])
-model Branch {
-  id                         String          @id() @default(uuid())
-  name                       String
-  location                   String
-  phoneNumber                String
-  items                      Item[]          @relation("branch")
-  sales                      Sale[]          @relation("branch")
-  stockTransfersAsFromBranch StockTransfer[] @relation("fromBranch")
-  stockTransfersAsToBranch   StockTransfer[] @relation("toBranch")
-  dateCreated                DateTime        @default(now())
-  dateUpdated                DateTime        @default(now()) @updatedAt()
+model Sale {
+  id           String   @id() @default(uuid())
+  sellPrice    Float
+  quantitySold Float
+  saleDate     String
+  itemId       String
+  item         Item?    @relation(fields: [itemId], references: [id], name: "item")
+  branchId     String
+  branch       Branch?  @relation(fields: [branchId], references: [id], name: "branch")
+  userId       String
+  user         User?    @relation(fields: [userId], references: [id], name: "sales")
+  userName     String
+  itemName     String
+  itemCategory String
+  branchName   String
+  itemPrice    Float
+  profit       Float
+  dateCreated  DateTime @default(now())
+  dateUpdated  DateTime @default(now()) @updatedAt()
 }
 
 /// @@allow('read', true)
@@ -123,26 +132,18 @@ model Item {
   dateUpdated       DateTime        @default(now()) @updatedAt()
 }
 
-/// @@allow('read', true)
-/// @@allow('create', true)
-/// @@allow('update', auth().roles?[name == 'admin'])
-/// @@allow('delete', auth().roles?[name == 'admin'])
-model Sale {
-  id           String   @id() @default(uuid())
-  sellPrice    Float
-  quantitySold Float
-  saleDate     String
-  itemId       String
-  item         Item?    @relation(fields: [itemId], references: [id], name: "item")
-  branchId     String
-  branch       Branch?  @relation(fields: [branchId], references: [id], name: "branch")
-  itemName     String
-  itemCategory String
-  branchName   String
-  itemPrice    Float
-  profit       Float
-  dateCreated  DateTime @default(now())
-  dateUpdated  DateTime @default(now()) @updatedAt()
+/// @@allow('all', true)
+model Branch {
+  id                         String          @id() @default(uuid())
+  name                       String
+  location                   String
+  phoneNumber                String
+  items                      Item[]          @relation("branch")
+  sales                      Sale[]          @relation("branch")
+  stockTransfersAsFromBranch StockTransfer[] @relation("fromBranch")
+  stockTransfersAsToBranch   StockTransfer[] @relation("toBranch")
+  dateCreated                DateTime        @default(now())
+  dateUpdated                DateTime        @default(now()) @updatedAt()
 }
 
 /// @@allow('all', true)

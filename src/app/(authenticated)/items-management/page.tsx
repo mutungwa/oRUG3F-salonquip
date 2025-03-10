@@ -120,17 +120,17 @@ export default function ItemsManagementPage() {
       // ✅ Create a sale record using mutateAsync
       await createSale({
         data: {
-          item: { connect: { id: item.id } },
-          branch: { connect: { id: item.branchId } },
-          sellPrice: values.sellPrice,
-          quantitySold: values.quantitySold,
-          saleDate: dayjs().toISOString(),
-          branchName: item.branch.name,
-          itemPrice: item.price,
+          itemId: item.id,
+          branchId: item.branchId,
+          userId: user?.id || '',
+          userName: user?.name || '',
           itemName: item.name,
-          itemCategory: item.category,
+          branchName: item.branch?.name || '',
+          quantitySold: values.quantitySold,
+          salePrice: values.sellPrice,
           profit: (values.sellPrice - item.price) * values.quantitySold,
-        } as Prisma.SaleCreateInput,
+          saleDate: new Date(),
+        },
       });
 
       enqueueSnackbar('Item sold successfully', { variant: 'success' });
@@ -299,11 +299,7 @@ const handleStockFilter = (value: string | null) => {
   return (
     <PageLayout layout="full-width">
       <Title level={2}>Items Management</Title>
-      <Text>
-        {isAdmin 
-          ? "Manage your inventory by adding, editing, and selling items." 
-          : "View inventory and sell items. Only admins can add or edit items."}
-      </Text>
+      <Text>Manage your inventory by adding, viewing, and selling items.</Text>
       {items && (items.some(item => item.quantity < item.minimumStockLevel && item.quantity > 0) || items.some(item => item.quantity === 0)) && (
   <Space direction="vertical" style={{ width: '100%', margin: '16px 0' }}>
     {items.some(item => item.quantity === 0) && (

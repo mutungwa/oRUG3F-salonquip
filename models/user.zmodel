@@ -3,6 +3,7 @@ import "./session.zmodel";
 import "./role.zmodel";
 
 import './admin.zmodel'
+import './sale.zmodel'
 
 model User {
     id               String    @id @default(uuid())
@@ -16,8 +17,8 @@ model User {
     accounts         Account[]
     sessions         Session[]
     roles            Role[]
-
-admins    Admin[]   @relation("user")  
+    admins           Admin[]   @relation("user")
+    sales            Sale[]    @relation("sales")
 
 @@auth()
     @@allow("all", auth().id == this.id)

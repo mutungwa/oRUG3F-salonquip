@@ -23,7 +23,7 @@ export const NavigationLayout: React.FC<Props> = ({ children }) => {
     router.push(url)
   }
 
-  // Show all navigation items to all users
+  // Base navigation items for all users
   let itemsLeftbar = [
     {
       key: '/home',
@@ -35,22 +35,29 @@ export const NavigationLayout: React.FC<Props> = ({ children }) => {
       label: 'Items Management',
       onClick: () => goTo('/items-management'),
     },
-    {
-      key: '/stock-management',
-      label: 'Sales Management',
-      onClick: () => goTo('/stock-management'),
-    },
-    {
-      key: '/branch-management',
-      label: 'Branch Management',
-      onClick: () => goTo('/branch-management'),
-    },
-    {
-      key: '/admin-management',
-      label: 'Admin Management',
-      onClick: () => goTo('/admin-management'),
-    },
   ]
+
+  // Admin-only navigation items
+  if (isAdmin) {
+    itemsLeftbar = [
+      ...itemsLeftbar,
+      {
+        key: '/stock-management',
+        label: 'Sales Management',
+        onClick: () => goTo('/stock-management'),
+      },
+      {
+        key: '/branch-management',
+        label: 'Branch Management',
+        onClick: () => goTo('/branch-management'),
+      },
+      {
+        key: '/admin-management',
+        label: 'Admin Management',
+        onClick: () => goTo('/admin-management'),
+      },
+    ]
+  }
 
   let itemsTopbar = []
 

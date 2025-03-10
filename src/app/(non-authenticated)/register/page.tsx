@@ -7,6 +7,7 @@ import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useSnackbar } from 'notistack'
 import { useState } from 'react'
+import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons'
 
 interface AuthError extends Error {
   code?: string;
@@ -123,6 +124,7 @@ export default function RegisterPage() {
                 placeholder="Your email" 
                 autoComplete="email"
                 disabled={isLoading} 
+                prefix={<MailOutlined />}
               />
             </Form.Item>
             <Form.Item
@@ -133,6 +135,7 @@ export default function RegisterPage() {
               <Input 
                 placeholder="Your name"
                 disabled={isLoading}
+                prefix={<UserOutlined />}
               />
             </Form.Item>
 
@@ -146,6 +149,7 @@ export default function RegisterPage() {
                 placeholder="Your password"
                 autoComplete="new-password"
                 disabled={isLoading}
+                prefix={<LockOutlined />}
               />
             </Form.Item>
 

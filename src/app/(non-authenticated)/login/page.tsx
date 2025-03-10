@@ -7,6 +7,7 @@ import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSnackbar } from 'notistack'
 import { useEffect, useState } from 'react'
+import { UserOutlined, LockOutlined } from '@ant-design/icons'
 
 interface LoginCredentials {
   email: string;
@@ -149,6 +150,7 @@ export default function LoginPage() {
                 placeholder="Your email" 
                 autoComplete="email"
                 disabled={isLoading}
+                prefix={<UserOutlined />}
               />
             </Form.Item>
 
@@ -162,6 +164,7 @@ export default function LoginPage() {
                 placeholder="Your password"
                 autoComplete="current-password"
                 disabled={isLoading}
+                prefix={<LockOutlined />}
               />
             </Form.Item>
 

@@ -326,7 +326,7 @@ export default function HomePage() {
             <ul>
               {lowStockItems?.map(item => (
                 <li key={item.id}>
-                  {item.name} - {item.description} - {item.category} - {item.quantity} in stock (minimum: {item.minimumStockLevel})
+                  {item.name} - {item.description} - {item.category} - {item.quantity} in stock
                 </li>
               ))}
             </ul>

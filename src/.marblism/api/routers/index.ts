@@ -6,18 +6,18 @@ import createUserRouter from "./User.router";
 import createSessionRouter from "./Session.router";
 import createRoleRouter from "./Role.router";
 import createAdminRouter from "./Admin.router";
-import createBranchRouter from "./Branch.router";
-import createItemRouter from "./Item.router";
 import createSaleRouter from "./Sale.router";
+import createItemRouter from "./Item.router";
+import createBranchRouter from "./Branch.router";
 import createStockTransferRouter from "./StockTransfer.router";
 import { ClientType as AccountClientType } from "./Account.router";
 import { ClientType as UserClientType } from "./User.router";
 import { ClientType as SessionClientType } from "./Session.router";
 import { ClientType as RoleClientType } from "./Role.router";
 import { ClientType as AdminClientType } from "./Admin.router";
-import { ClientType as BranchClientType } from "./Branch.router";
-import { ClientType as ItemClientType } from "./Item.router";
 import { ClientType as SaleClientType } from "./Sale.router";
+import { ClientType as ItemClientType } from "./Item.router";
+import { ClientType as BranchClientType } from "./Branch.router";
 import { ClientType as StockTransferClientType } from "./StockTransfer.router";
 
 export type BaseConfig = AnyRootConfig;
@@ -48,9 +48,9 @@ export function createRouter<Config extends BaseConfig>(router: RouterFactory<Co
         session: createSessionRouter(router, procedure),
         role: createRoleRouter(router, procedure),
         admin: createAdminRouter(router, procedure),
-        branch: createBranchRouter(router, procedure),
-        item: createItemRouter(router, procedure),
         sale: createSaleRouter(router, procedure),
+        item: createItemRouter(router, procedure),
+        branch: createBranchRouter(router, procedure),
         stockTransfer: createStockTransferRouter(router, procedure),
     }
     );
@@ -62,8 +62,8 @@ export interface ClientType<AppRouter extends AnyRouter> {
     session: SessionClientType<AppRouter>;
     role: RoleClientType<AppRouter>;
     admin: AdminClientType<AppRouter>;
-    branch: BranchClientType<AppRouter>;
-    item: ItemClientType<AppRouter>;
     sale: SaleClientType<AppRouter>;
+    item: ItemClientType<AppRouter>;
+    branch: BranchClientType<AppRouter>;
     stockTransfer: StockTransferClientType<AppRouter>;
 }
