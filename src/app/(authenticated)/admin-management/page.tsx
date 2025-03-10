@@ -258,20 +258,21 @@ export default function AdminManagementPage() {
     },
     {
       title: 'Price',
-      dataIndex: 'salePrice',
-      key: 'salePrice',
-      render: (price) => `KES ${price.toFixed(2)}`,
+      dataIndex: 'sellPrice',
+      key: 'sellPrice',
+      render: (price) => price ? `KES ${price.toFixed(2)}` : 'N/A',
     },
     {
       title: 'Total',
       key: 'total',
-      render: (_, record) => `KES ${(record.salePrice * record.quantitySold).toFixed(2)}`,
+      render: (_, record) => record.sellPrice && record.quantitySold ? 
+        `KES ${(record.sellPrice * record.quantitySold).toFixed(2)}` : 'N/A',
     },
     {
       title: 'Profit',
       dataIndex: 'profit',
       key: 'profit',
-      render: (profit) => <Tag color="green">{`KES ${profit.toFixed(2)}`}</Tag>,
+      render: (profit) => profit ? <Tag color="green">{`KES ${profit.toFixed(2)}`}</Tag> : <Tag color="gray">N/A</Tag>,
     },
   ];
 

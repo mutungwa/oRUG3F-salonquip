@@ -120,16 +120,18 @@ export default function ItemsManagementPage() {
       // ✅ Create a sale record using mutateAsync
       await createSale({
         data: {
+          sellPrice: values.sellPrice,
+          quantitySold: values.quantitySold,
+          saleDate: new Date().toISOString(),
           itemId: item.id,
           branchId: item.branchId,
           userId: user?.id || '',
-          userName: user?.name || '',
           itemName: item.name,
           branchName: item.branch?.name || '',
-          quantitySold: values.quantitySold,
-          salePrice: values.sellPrice,
+          userName: user?.name || '',
+          itemCategory: item.category,
+          itemPrice: item.price,
           profit: (values.sellPrice - item.price) * values.quantitySold,
-          saleDate: new Date(),
         },
       });
 
@@ -265,12 +267,12 @@ const handleStockFilter = (value: string | null) => {
           </Button>
           {isAdmin && (
             <>
-              <Button
-                type="default"
-                icon={<EditOutlined />}
-                onClick={() => {
-                  setCurrentItem(record);
-                  setIsEditModalVisible(true);
+          <Button
+            type="default"
+            icon={<EditOutlined />}
+            onClick={() => {
+              setCurrentItem(record);
+              setIsEditModalVisible(true);
                   editForm.setFieldsValue({
                     name: record.name,
                     description: record.description,
@@ -282,13 +284,13 @@ const handleStockFilter = (value: string | null) => {
                     origin: record.origin,
                     minimumStockLevel: record.minimumStockLevel,
                   });
-                }}
-              >
-                Edit
-              </Button>
-              <Button type="default" danger icon={<DeleteOutlined />} onClick={() => handleDeleteItem(record.id)}>
-                Delete
-              </Button>
+            }}
+          >
+            Edit
+          </Button>
+          <Button type="default" danger icon={<DeleteOutlined />} onClick={() => handleDeleteItem(record.id)}>
+            Delete
+          </Button>
             </>
           )}
         </Space>
@@ -321,9 +323,9 @@ const handleStockFilter = (value: string | null) => {
   </Space>
 )}
       {isAdmin && (
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)} style={{ margin: '20px 0' }}>
-          Add Item
-        </Button>
+      <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)} style={{ margin: '20px 0' }}>
+        Add Item
+      </Button>
       )}
       <Select placeholder="Filter by Branch" onChange={handleFilterByBranch} style={{ width: 200, marginBottom: 20 }} allowClear>
         {branches?.map(branch => (

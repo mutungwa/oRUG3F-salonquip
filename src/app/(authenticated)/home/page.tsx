@@ -32,6 +32,31 @@ const { TabPane } = Tabs
 
 const { RangePicker } = DatePicker
 
+// Update the type definition at the top of the file
+type StockTransfer = {
+  id: string;
+  quantity: number;
+  transferDate: string;
+  itemId: string;
+  fromBranchId: string;
+  toBranchId: string;
+  dateCreated: Date;
+  dateUpdated: Date;
+  item: {
+    id: string;
+    name: string;
+    sku: string;
+  } | null;
+  fromBranch: {
+    id: string;
+    name: string;
+  } | null;
+  toBranch: {
+    id: string;
+    name: string;
+  } | null;
+};
+
 export default function HomePage() {
   const router = useRouter()
   const params = useParams<any>()
@@ -47,6 +72,8 @@ export default function HomePage() {
     toBranchId: '',
   })
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  const [transferCategoryId, setTransferCategoryId] = useState<string>('')
+  const [transferSourceBranch, setTransferSourceBranch] = useState<string | null>(null)
 
   const { data: branches, isLoading: branchesLoading } =
     Api.branch.findMany.useQuery({})
@@ -66,13 +93,34 @@ export default function HomePage() {
     {
       where: {
         AND: [
-          { name: selectedItem?.name || '' },
-          { branchId: transferDetails.toBranchId || '' }
+          // Check by name and branch
+          {
+            name: selectedItem?.name || '',
+            branchId: transferDetails.toBranchId,
+          }
         ]
       },
     },
     {
-      enabled: !!selectedItem && !!transferDetails.toBranchId,
+      enabled: Boolean(selectedItem?.name && transferDetails.toBranchId),
+    }
+  )
+
+  const { data: existingCategoryItems } = Api.item.findMany.useQuery(
+    {
+      where: {
+        branchId: transferDetails.toBranchId,
+        sku: {
+          startsWith: transferCategoryId
+        }
+      },
+      orderBy: {
+        sku: 'desc'
+      },
+      take: 1
+    },
+    {
+      enabled: Boolean(transferCategoryId && transferDetails.toBranchId),
     }
   )
 
@@ -128,6 +176,16 @@ export default function HomePage() {
     }));
   }, [salesData, dateRange]);
 
+  const { 
+    data: recentTransfers, 
+    isLoading: transfersLoading,
+    refetch: refetchTransfers 
+  } = Api.stockTransfer.findMany.useQuery({}, {
+    onSuccess: (data) => {
+      console.log('Transfers loaded in component:', data)
+    }
+  });
+
   const handleBranchChange = (value: string) => {
     setSelectedBranch(value)
     refetchItems()
@@ -138,12 +196,15 @@ export default function HomePage() {
   }
 
   const openTransferModal = (item: any) => {
+    // Store the source branch separately for the transfer
+    setTransferSourceBranch(item.branchId)
     setSelectedItem(item)
     setTransferDetails({
       itemId: item.id,
       quantity: 0,
       toBranchId: '',
     })
+    setTransferCategoryId(item.sku.substring(0, 3))
     setIsTransferModalVisible(true)
   }
 
@@ -155,6 +216,8 @@ export default function HomePage() {
       toBranchId: '',
     })
     setSelectedItem(null)
+    setTransferCategoryId('')
+    setTransferSourceBranch(null)
   }
 
   const handleTransfer = async () => {
@@ -182,56 +245,95 @@ export default function HomePage() {
         return
       }
 
-      // Update source item quantity first
-      await updateItem({
-        where: { id: selectedItem.id },
-        data: {
-          quantity: selectedItem.quantity - transferDetails.quantity,
-        },
-      })
-
-      if (existingItemInBranch) {
-        // Update existing item in destination branch
-        await updateItem({
-          where: { id: existingItemInBranch.id },
-          data: {
-            quantity: existingItemInBranch.quantity + transferDetails.quantity,
-          },
-        })
-      } else {
-        // Create new item in destination branch
-        await createItem({
-          data: {
-            name: selectedItem.name,
-            description: selectedItem.description,
-            category: selectedItem.category,
-            price: selectedItem.price,
-            sku: selectedItem.sku,
-            quantity: transferDetails.quantity,
-            origin: selectedItem.origin,
-            imageUrl: selectedItem.imageUrl,
-            branchId: transferDetails.toBranchId,
-          },
-        })
+      if (selectedItem.branchId === transferDetails.toBranchId) {
+        enqueueSnackbar('Cannot transfer to the same branch', { variant: 'error' })
+        return
       }
 
-      // Create transfer record
-      await transferStock({
-        data: {
-          itemId: transferDetails.itemId,
-          quantity: transferDetails.quantity,
-          fromBranchId: selectedBranch!,
-          toBranchId: transferDetails.toBranchId,
-          transferDate: new Date().toISOString(),
-        },
-      })
+      try {
+        // Start a transaction-like sequence
+        // 1. Update source item
+        await updateItem({
+          where: { id: selectedItem.id },
+          data: {
+            quantity: selectedItem.quantity - transferDetails.quantity,
+          },
+        })
 
-      enqueueSnackbar('Stock transferred successfully', { variant: 'success' })
-      closeTransferModal()
-      refetchItems()
-    } catch (error) {
+        let destinationItemId: string;
+
+        // 2. Handle destination item
+        if (existingItemInBranch) {
+          // Update existing item
+          await updateItem({
+            where: { id: existingItemInBranch.id },
+            data: {
+              quantity: existingItemInBranch.quantity + transferDetails.quantity,
+              // Update other fields to ensure they're in sync
+              price: selectedItem.price,
+              description: selectedItem.description || '',
+              category: selectedItem.category,
+              minimumStockLevel: selectedItem.minimumStockLevel,
+              origin: selectedItem.origin,
+              imageUrl: selectedItem.imageUrl || ''
+            },
+          })
+          destinationItemId = existingItemInBranch.id;
+        } else {
+          // Create new item in destination branch
+          // Extract the category identifier (first 3 digits)
+          const categoryId = selectedItem.sku.substring(0, 3);
+          
+          let newSku: string;
+          if (existingCategoryItems && existingCategoryItems.length > 0) {
+            // Get the last number and increment it
+            const lastSku = existingCategoryItems[0].sku;
+            const lastNumber = parseInt(lastSku.substring(3));
+            newSku = `${categoryId}${(lastNumber + 1).toString().padStart(3, '0')}`;
+          } else {
+            // First item in this category for this branch
+            newSku = `${categoryId}001`;
+          }
+          
+          const newItem = await createItem({
+            data: {
+              name: selectedItem.name,
+              description: selectedItem.description || '',
+              category: selectedItem.category,
+              price: selectedItem.price,
+              sku: newSku,
+              quantity: transferDetails.quantity,
+              origin: selectedItem.origin,
+              imageUrl: selectedItem.imageUrl || '',
+              branchId: transferDetails.toBranchId,
+              minimumStockLevel: selectedItem.minimumStockLevel,
+            },
+          })
+          destinationItemId = newItem.id;
+        }
+
+        // 3. Create stock transfer record
+        await transferStock({
+          data: {
+            quantity: transferDetails.quantity,
+            transferDate: new Date().toISOString(),
+            itemId: selectedItem.id,
+            fromBranchId: transferSourceBranch || selectedItem.branchId,
+            toBranchId: transferDetails.toBranchId
+          }
+        })
+
+        enqueueSnackbar('Stock transferred successfully', { variant: 'success' })
+        closeTransferModal()
+        refetchItems()
+        refetchTransfers()
+      } catch (innerError: any) {
+        console.error('Transfer operation failed:', innerError)
+        enqueueSnackbar('Transfer failed: ' + (innerError.message || 'Unknown error'), { variant: 'error' })
+      }
+    } catch (error: any) {
       console.error('Transfer error:', error)
-      enqueueSnackbar('Failed to transfer stock', { variant: 'error' })
+      enqueueSnackbar(error.message || 'Failed to transfer stock', { variant: 'error' })
     }
   }
 
@@ -291,9 +393,6 @@ export default function HomePage() {
     totalItems: items?.filter(item => item.branchId === branch.id).reduce((acc, item) => acc + item.quantity, 0) || 0,
   }));
 
-  const recentTransfers = [];
-  // TODO: Fetch recent transfers data
-
   const lowStockItems = items?.filter(item => item.quantity < item.minimumStockLevel);
 
   return (
@@ -316,11 +415,59 @@ export default function HomePage() {
             </BarChart>
           </TabPane>
           <TabPane tab="Recent Transfers" key="2">
-            <ul>
-              {recentTransfers.map((transfer, index) => (
-                <li key={index}>{transfer}</li>
-              ))}
-            </ul>
+            {transfersLoading ? (
+              <div>Loading transfers...</div>
+            ) : !recentTransfers || recentTransfers.length === 0 ? (
+              <div>No transfers found</div>
+            ) : (
+              <>
+                <Button 
+                  onClick={() => refetchTransfers()} 
+                  style={{ marginBottom: '16px' }}
+                >
+                  Refresh Transfers
+                </Button>
+                <Table
+                  dataSource={recentTransfers}
+                  columns={[
+                    {
+                      title: 'Item Name',
+                      key: 'itemName',
+                      render: (_, record: StockTransfer) => {
+                        return record.item?.name || 'N/A';
+                      }
+                    },
+                    {
+                      title: 'Quantity',
+                      dataIndex: 'quantity',
+                      key: 'quantity'
+                    },
+                    {
+                      title: 'From Branch',
+                      key: 'fromBranch',
+                      render: (_, record: StockTransfer) => {
+                        return record.fromBranch?.name || 'N/A';
+                      }
+                    },
+                    {
+                      title: 'To Branch',
+                      key: 'toBranch',
+                      render: (_, record: StockTransfer) => {
+                        return record.toBranch?.name || 'N/A';
+                      }
+                    },
+                    {
+                      title: 'Date',
+                      dataIndex: 'transferDate',
+                      key: 'transferDate',
+                      render: (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
+                    },
+                  ]}
+                  rowKey="id"
+                  pagination={{ pageSize: 5 }}
+                />
+              </>
+            )}
           </TabPane>
           <TabPane tab="Low Stock Levels" key="3">
             <ul>
@@ -417,7 +564,8 @@ export default function HomePage() {
           disabled:
             !transferDetails.quantity ||
             !transferDetails.toBranchId ||
-            transferDetails.quantity > (selectedItem?.quantity || 0),
+            transferDetails.quantity > (selectedItem?.quantity || 0) ||
+            selectedBranch === transferDetails.toBranchId,
         }}
       >
         <Form layout="vertical">
@@ -450,7 +598,7 @@ export default function HomePage() {
               style={{ width: '100%' }}
             >
               {branches
-                ?.filter(branch => branch.id !== selectedBranch)
+                ?.filter(branch => branch.id !== transferSourceBranch)
                 .map(branch => (
                   <Option key={branch.id} value={branch.id}>
                     {branch.name}
@@ -458,6 +606,14 @@ export default function HomePage() {
                 ))}
             </Select>
           </Form.Item>
+
+          {existingItemInBranch && (
+            <Form.Item>
+              <div style={{ color: '#1890ff' }}>
+                This item already exists in the destination branch with quantity: {existingItemInBranch.quantity}
+              </div>
+            </Form.Item>
+          )}
         </Form>
       </Modal>
     </PageLayout>
