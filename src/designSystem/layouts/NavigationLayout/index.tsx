@@ -14,7 +14,8 @@ interface Props {
 export const NavigationLayout: React.FC<Props> = ({ children }) => {
   const router = useRouter()
 
-  const { user, authenticationStatus: isLoggedIn } = useUserContext()
+  const { user, authenticationStatus: isLoggedIn, checkRole } = useUserContext()
+  const isAdmin = checkRole('admin')
 
   const { isMobile } = useDesignSystem()
 
@@ -22,31 +23,28 @@ export const NavigationLayout: React.FC<Props> = ({ children }) => {
     router.push(url)
   }
 
+  // Show all navigation items to all users
   let itemsLeftbar = [
     {
       key: '/home',
       label: 'Home',
       onClick: () => goTo('/home'),
     },
-
     {
       key: '/items-management',
       label: 'Items Management',
       onClick: () => goTo('/items-management'),
     },
-
     {
       key: '/stock-management',
       label: 'Sales Management',
       onClick: () => goTo('/stock-management'),
     },
-
     {
       key: '/branch-management',
       label: 'Branch Management',
       onClick: () => goTo('/branch-management'),
     },
-
     {
       key: '/admin-management',
       label: 'Admin Management',

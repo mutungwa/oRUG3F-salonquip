@@ -294,8 +294,7 @@ export default function HomePage() {
   const recentTransfers = [];
   // TODO: Fetch recent transfers data
 
-  const lowStockThreshold = 10;
-  const lowStockItems = items?.filter(item => item.quantity < lowStockThreshold);
+  const lowStockItems = items?.filter(item => item.quantity < item.minimumStockLevel);
 
   return (
     <PageLayout layout="full-width">
@@ -327,7 +326,7 @@ export default function HomePage() {
             <ul>
               {lowStockItems?.map(item => (
                 <li key={item.id}>
-                  {item.name} - {item.description} - {item.category} - {item.quantity} in stock
+                  {item.name} - {item.description} - {item.category} - {item.quantity} in stock (minimum: {item.minimumStockLevel})
                 </li>
               ))}
             </ul>

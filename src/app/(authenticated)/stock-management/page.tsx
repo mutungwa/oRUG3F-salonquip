@@ -22,8 +22,10 @@ import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import isBetween from 'dayjs/plugin/isBetween'
 import { useSnackbar } from 'notistack'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import { useRouter } from 'next/navigation'
+import { useUserContext } from '@/core/context'
 
 dayjs.extend(isBetween)
 
@@ -33,6 +35,10 @@ const { TabPane } = Tabs
 
 export default function StockManagementPage() {
   const { enqueueSnackbar } = useSnackbar()
+  const router = useRouter()
+  const { user, checkRole } = useUserContext()
+  const isAdmin = checkRole('admin')
+  
   const [isExporting, setIsExporting] = useState(false)
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
   const [searchText, setSearchText] = useState('')
@@ -77,6 +83,8 @@ export default function StockManagementPage() {
       filtered = filtered.filter(item => {
         return (
           item.name.toLowerCase().includes(searchLower) ||
+          item.sku.toLowerCase().includes(searchLower) ||
+          (item.description && item.description.toLowerCase().includes(searchLower)) ||
           item.sales.some(sale => 
             sale.branchName.toLowerCase().includes(searchLower)
           )
@@ -364,14 +372,14 @@ export default function StockManagementPage() {
       <Row justify="center" style={{ marginBottom: '20px' }}>
         <Col span={24}>
           <Title level={2}>Sales Management</Title>
-          <Text>View and manage all sales records.</Text>
+          <Text>View sales records and track item performance.</Text>
         </Col>
       </Row>
       <Row justify="center" style={{ marginBottom: '20px' }}>
         <Col span={24}>
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Input
-              placeholder="Search items or branches..."
+              placeholder="Search by name, SKU, description, or branch name..."
               prefix={<SearchOutlined />}
               onChange={handleSearch}
               value={searchText}
@@ -384,15 +392,17 @@ export default function StockManagementPage() {
               value={dateRange}
               allowClear
             />
-            <Button 
-              type="primary"
-              onClick={downloadCSV}
-              icon={<DownloadOutlined />}
-              loading={isExporting}
-              disabled={!filteredData?.length || isExporting}
-            >
-              {isExporting ? 'Preparing Download...' : 'Download Report'}
-            </Button>
+            {isAdmin && (
+              <Button 
+                type="primary"
+                onClick={downloadCSV}
+                icon={<DownloadOutlined />}
+                loading={isExporting}
+                disabled={!filteredData?.length || isExporting}
+              >
+                {isExporting ? 'Preparing Download...' : 'Download Report'}
+              </Button>
+            )}
           </Space>
         </Col>
       </Row>

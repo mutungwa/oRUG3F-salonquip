@@ -8,6 +8,6 @@ model Role {
 
     @@allow('read', auth().id == this.userId)
     @@allow('delete', auth().id == this.userId)
-    @@allow('create', name != 'admin')
-    @@allow('update', future().name != 'admin')
+    @@allow('create', true)
+    @@allow('update', true)
 }

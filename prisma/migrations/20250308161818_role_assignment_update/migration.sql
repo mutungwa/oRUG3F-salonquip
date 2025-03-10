@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Item" ADD COLUMN     "minimumStockLevel" DOUBLE PRECISION NOT NULL DEFAULT 0;

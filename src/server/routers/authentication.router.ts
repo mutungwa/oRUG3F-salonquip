@@ -38,19 +38,46 @@ export const AuthenticationRouter = Trpc.createRouter({
           })
         }
 
+        // Check if this is the first user
+        const userCount = await ctx.databaseUnprotected.user.count();
+        const isFirstUser = userCount === 0;
+
         // Hash password and create user
         const passwordHashed = await hashPassword(input.password)
 
-        const user = await ctx.databaseUnprotected.user.create({
-          data: {
-            ...input,
-            email: input.email.toLowerCase(), // Normalize email
-            password: passwordHashed,
-          },
-          select: { id: true } // Only return necessary data
-        })
+        // Create user with appropriate role
+        const userData = {
+          ...input,
+          email: input.email.toLowerCase(), // Normalize email
+          password: passwordHashed,
+        };
 
-        console.info('User registered successfully', { userId: user.id })
+        const user = await ctx.databaseUnprotected.user.create({
+          data: userData,
+          select: { id: true } // Only return necessary data
+        });
+
+        // If this is the first user, make them an admin
+        if (isFirstUser) {
+          // Create admin role for the user
+          await ctx.databaseUnprotected.role.create({
+            data: {
+              name: 'admin',
+              userId: user.id
+            }
+          });
+
+          // Create admin record
+          await ctx.databaseUnprotected.admin.create({
+            data: {
+              userId: user.id
+            }
+          });
+
+          console.info('First user registered as admin', { userId: user.id });
+        } else {
+          console.info('User registered as regular user', { userId: user.id });
+        }
 
         return { id: user.id }
       } catch (error) {

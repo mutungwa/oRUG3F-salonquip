@@ -64,8 +64,8 @@ model Session {
 
 /// @@allow('read', auth().id == this.userId)
 /// @@allow('delete', auth().id == this.userId)
-/// @@allow('create', name != 'admin')
-/// @@allow('update', future().name != 'admin')
+/// @@allow('create', true)
+/// @@allow('update', true)
 model Role {
   id     String @id() @default(uuid())
   name   String
@@ -82,7 +82,10 @@ model Admin {
   dateUpdated DateTime @default(now()) @updatedAt()
 }
 
-/// @@allow('all', true)
+/// @@allow('read', true)
+/// @@allow('create', auth().roles?[name == 'admin'])
+/// @@allow('update', auth().roles?[name == 'admin'])
+/// @@allow('delete', auth().roles?[name == 'admin'])
 model Branch {
   id                         String          @id() @default(uuid())
   name                       String
@@ -96,7 +99,10 @@ model Branch {
   dateUpdated                DateTime        @default(now()) @updatedAt()
 }
 
-/// @@allow('all', true)
+/// @@allow('read', true)
+/// @@allow('create', auth().roles?[name == 'admin'])
+/// @@allow('update', auth().roles?[name == 'admin'])
+/// @@allow('delete', auth().roles?[name == 'admin'])
 model Item {
   id                String          @id() @default(uuid())
   name              String
@@ -117,7 +123,10 @@ model Item {
   dateUpdated       DateTime        @default(now()) @updatedAt()
 }
 
-/// @@allow('all', true)
+/// @@allow('read', true)
+/// @@allow('create', true)
+/// @@allow('update', auth().roles?[name == 'admin'])
+/// @@allow('delete', auth().roles?[name == 'admin'])
 model Sale {
   id           String   @id() @default(uuid())
   sellPrice    Float

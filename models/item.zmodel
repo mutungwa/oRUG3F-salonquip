@@ -22,5 +22,9 @@ sales     Sale[]    @relation("item")
     stockTransfers StockTransfer[] @relation("item")  
       dateCreated DateTime @default(now())
       dateUpdated DateTime @updatedAt  @default(now())
-      @@allow("all", true)
+      
+      @@allow("read", true)
+      @@allow("create", auth().roles?[name == 'admin'])
+      @@allow("update", auth().roles?[name == 'admin'])
+      @@allow("delete", auth().roles?[name == 'admin'])
 }

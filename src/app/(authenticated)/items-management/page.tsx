@@ -4,7 +4,7 @@ import { useUserContext } from '@/core/context';
 import { useUploadPublic } from '@/core/hooks/upload';
 import { Api } from '@/core/trpc';
 import { PageLayout } from '@/designSystem/layouts/Page.layout';
-import { DeleteOutlined, DollarOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { DeleteOutlined, DollarOutlined, EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { Prisma } from '@prisma/client';
 import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Typography, Tag, Alert } from 'antd';
 import dayjs from 'dayjs';
@@ -24,7 +24,8 @@ const styles = {
 export default function ItemsManagementPage() {
   const router = useRouter();
   const params = useParams<any>();
-  const { user } = useUserContext();
+  const { user, checkRole } = useUserContext();
+  const isAdmin = checkRole('admin');
   const { enqueueSnackbar } = useSnackbar();
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
@@ -36,6 +37,7 @@ export default function ItemsManagementPage() {
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [currentItem, setCurrentItem] = useState<any>(null);
   const [stockFilter, setStockFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const { data: branches } = Api.branch.findMany.useQuery({});
   const { data: fetchedItems, refetch } = Api.item.findMany.useQuery({ include: { branch: true } });
@@ -193,12 +195,19 @@ export default function ItemsManagementPage() {
     if (stockFilter === 'outOfStock') {
       stockMatch = item.quantity === 0;
     } else if (stockFilter === 'low') {
-      stockMatch = item.quantity > 0 && item.quantity < 5;
+      stockMatch = item.quantity > 0 && item.quantity < item.minimumStockLevel;
     } else if (stockFilter === 'normal') {
-      stockMatch = item.quantity >= 5;
+      stockMatch = item.quantity >= item.minimumStockLevel;
     }
+
+    // Search filter
+    const searchMatch = searchQuery
+      ? item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      : true;
     
-    return branchMatch && stockMatch;
+    return branchMatch && stockMatch && searchMatch;
   });
 
 // Add this handler function
@@ -217,11 +226,11 @@ const handleStockFilter = (value: string | null) => {
       title: 'Quantity', 
       dataIndex: 'quantity', 
       key: 'quantity',
-      render: (quantity: number) => (
+      render: (quantity: number, record: any) => (
         <Space>
           {quantity === 0 ? (
             <Tag color="red">Out of Stock</Tag>
-          ) : quantity < 5 ? (
+          ) : quantity < record.minimumStockLevel ? (
             <Space>
               {quantity}
               <Tag color="orange">Low Stock</Tag>
@@ -254,20 +263,34 @@ const handleStockFilter = (value: string | null) => {
           >
             Sell
           </Button>
-          <Button
-            type="default"
-            icon={<EditOutlined />}
-            onClick={() => {
-              setCurrentItem(record);
-              setIsEditModalVisible(true);
-              editForm.setFieldsValue(record);
-            }}
-          >
-            Edit
-          </Button>
-          <Button type="default" danger icon={<DeleteOutlined />} onClick={() => handleDeleteItem(record.id)}>
-            Delete
-          </Button>
+          {isAdmin && (
+            <>
+              <Button
+                type="default"
+                icon={<EditOutlined />}
+                onClick={() => {
+                  setCurrentItem(record);
+                  setIsEditModalVisible(true);
+                  editForm.setFieldsValue({
+                    name: record.name,
+                    description: record.description,
+                    category: record.category,
+                    branch: record.branchId,
+                    price: record.price,
+                    sku: record.sku,
+                    quantity: record.quantity,
+                    origin: record.origin,
+                    minimumStockLevel: record.minimumStockLevel,
+                  });
+                }}
+              >
+                Edit
+              </Button>
+              <Button type="default" danger icon={<DeleteOutlined />} onClick={() => handleDeleteItem(record.id)}>
+                Delete
+              </Button>
+            </>
+          )}
         </Space>
       ),
     },
@@ -276,7 +299,11 @@ const handleStockFilter = (value: string | null) => {
   return (
     <PageLayout layout="full-width">
       <Title level={2}>Items Management</Title>
-      <Text>Manage your inventory by adding, viewing, and selling items.</Text>
+      <Text>
+        {isAdmin 
+          ? "Manage your inventory by adding, editing, and selling items." 
+          : "View inventory and sell items. Only admins can add or edit items."}
+      </Text>
       {items && (items.some(item => item.quantity < item.minimumStockLevel && item.quantity > 0) || items.some(item => item.quantity === 0)) && (
   <Space direction="vertical" style={{ width: '100%', margin: '16px 0' }}>
     {items.some(item => item.quantity === 0) && (
@@ -290,16 +317,18 @@ const handleStockFilter = (value: string | null) => {
     {items.some(item => item.quantity < item.minimumStockLevel && item.quantity > 0) && (
       <Alert
         message="Low Stock Alert"
-        description="Some items are running low on stock. Please check the inventory."
+        description="Some items are running low on stock (below minimum level). Please check the inventory."
         type="warning"
         showIcon
       />
     )}
   </Space>
 )}
-      <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)} style={{ margin: '20px 0' }}>
-        Add Item
-      </Button>
+      {isAdmin && (
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)} style={{ margin: '20px 0' }}>
+          Add Item
+        </Button>
+      )}
       <Select placeholder="Filter by Branch" onChange={handleFilterByBranch} style={{ width: 200, marginBottom: 20 }} allowClear>
         {branches?.map(branch => (
           <Option key={branch.id} value={branch.id}>
@@ -314,9 +343,16 @@ const handleStockFilter = (value: string | null) => {
     allowClear
   >
     <Option value="outOfStock">Out of Stock (0)</Option>
-    <Option value="low">Low Stock (Below 5)</Option>
-    <Option value="normal">Normal Stock (5 or more)</Option>
+    <Option value="low">Low Stock (Below minimum)</Option>
+    <Option value="normal">Normal Stock (Above minimum)</Option>
   </Select>
+  <Input
+    placeholder="Search by name, SKU, or description"
+    value={searchQuery}
+    onChange={e => setSearchQuery(e.target.value)}
+    style={{ width: 300, marginLeft: 8, marginBottom: 20 }}
+    prefix={<SearchOutlined />}
+  />
   <Table 
   columns={columns} 
   dataSource={filteredItems} 
@@ -324,12 +360,12 @@ const handleStockFilter = (value: string | null) => {
   onRow={(record) => ({
     style: record.quantity === 0 
       ? { backgroundColor: '#ffccc7' }
-      : record.quantity < 5 
+      : record.quantity < record.minimumStockLevel 
         ? { backgroundColor: '#fff7e6' }
         : {}
   })}
   summary={(pageData) => {
-    const lowStockItems = pageData.filter(item => item.quantity > 0 && item.quantity < 5).length;
+    const lowStockItems = pageData.filter(item => item.quantity > 0 && item.quantity < item.minimumStockLevel).length;
     const outOfStockItems = pageData.filter(item => item.quantity === 0).length;
     
     return (lowStockItems > 0 || outOfStockItems > 0) ? (
@@ -338,12 +374,12 @@ const handleStockFilter = (value: string | null) => {
           <Space direction="vertical">
             {outOfStockItems > 0 && (
               <Text type="danger">
-                {`${outOfStockItems} item${outOfStockItems > 1 ? 's' : ''} out of stock`}
+                {outOfStockItems} item(s) out of stock
               </Text>
             )}
             {lowStockItems > 0 && (
               <Text type="warning">
-                {`${lowStockItems} item${lowStockItems > 1 ? 's' : ''} with low stock`}
+                {lowStockItems} item(s) with low stock (below minimum level)
               </Text>
             )}
           </Space>

@@ -18,5 +18,8 @@ model Sale {
 
     dateCreated   DateTime  @default(now())
     dateUpdated   DateTime  @updatedAt @default(now())
-    @@allow("all", true)
+    @@allow("read", true)
+    @@allow("create", true)
+    @@allow("update", auth().roles?[name == 'admin'])
+    @@allow("delete", auth().roles?[name == 'admin'])
 }
