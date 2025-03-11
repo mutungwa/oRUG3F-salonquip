@@ -13,13 +13,23 @@ export const Leftbar: React.FC<Props> = ({ logo, items }) => {
 
   return (
     <>
-      <Sider width={250} trigger={null} style={{ height: '100%' }}>
+      <Sider 
+        width={250} 
+        trigger={null} 
+        style={{ 
+          height: '100vh', 
+          overflow: 'auto',
+        }}
+      >
         <Row>{logo}</Row>
         <Menu
           mode="inline"
           items={items}
           selectedKeys={[pathname]}
-          style={{ width: '100%' }}
+          style={{ 
+            width: '100%',
+            height: 'calc(100% - 60px)', // Adjust for logo height
+          }}
         />
       </Sider>
     </>

@@ -60,7 +60,7 @@ type StockTransfer = {
 export default function HomePage() {
   const router = useRouter()
   const params = useParams<any>()
-  const { user } = useUserContext()
+  const { user, checkRole } = useUserContext()
   const { enqueueSnackbar } = useSnackbar()
 
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
@@ -74,6 +74,8 @@ export default function HomePage() {
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [transferCategoryId, setTransferCategoryId] = useState<string>('')
   const [transferSourceBranch, setTransferSourceBranch] = useState<string | null>(null)
+
+  const isAdmin = checkRole('admin')
 
   const { data: branches, isLoading: branchesLoading } =
     Api.branch.findMany.useQuery({})
@@ -128,7 +130,12 @@ export default function HomePage() {
   const { mutateAsync: updateItem } = Api.item.update.useMutation()
   const { mutateAsync: createItem } = Api.item.create.useMutation()
 
-  const { data: salesData, isLoading: salesLoading } = Api.sale.findMany.useQuery({});
+  const { data: salesData, isLoading: salesLoading, error: salesError } = Api.sale.findMany.useQuery({}, {
+    onError: (error) => {
+      console.error('Error fetching sales data:', error);
+      enqueueSnackbar('Failed to fetch sales data. Please try again later.', { variant: 'error' });
+    }
+  });
 
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
 
@@ -196,6 +203,12 @@ export default function HomePage() {
   }
 
   const openTransferModal = (item: any) => {
+    // Check if user has admin rights before allowing transfer
+    if (!isAdmin) {
+      enqueueSnackbar('Access Denied: Only administrators can transfer items', { variant: 'error' });
+      return;
+    }
+
     // Store the source branch separately for the transfer
     setTransferSourceBranch(item.branchId)
     setSelectedItem(item)
@@ -378,9 +391,10 @@ export default function HomePage() {
         record: Prisma.ItemGetPayload<{ include: { branch: true } }>,
       ) => (
         <Button
-          icon={<SwapOutlined style={{ color: 'black' }} />}
+          icon={<SwapOutlined style={{ color: isAdmin ? 'black' : 'gray' }} />}
           onClick={() => openTransferModal(record)}
-          disabled={record.quantity <= 0}
+          disabled={record.quantity <= 0 || !isAdmin}
+          title={!isAdmin ? 'Only administrators can transfer items' : record.quantity <= 0 ? 'No stock available to transfer' : 'Transfer item'}
         >
           Transfer
         </Button>
@@ -394,6 +408,13 @@ export default function HomePage() {
   }));
 
   const lowStockItems = items?.filter(item => item.quantity < item.minimumStockLevel);
+
+  // Log the error if it exists
+  useEffect(() => {
+    if (salesError) {
+      console.error('Sales data error:', salesError);
+    }
+  }, [salesError]);
 
   return (
     <PageLayout layout="full-width">

@@ -16,19 +16,6 @@ export default function BranchManagementPage() {
   const isAdmin = checkRole('admin')
   const { enqueueSnackbar } = useSnackbar()
   
-  // Redirect non-admin users to home page
-  useEffect(() => {
-    if (!isAdmin) {
-      router.push('/home')
-      enqueueSnackbar('You do not have permission to access this page', { variant: 'error' })
-    }
-  }, [isAdmin, router, enqueueSnackbar])
-
-  // If not admin, don't render the page content
-  if (!isAdmin) {
-    return null
-  }
-  
   const { mutateAsync: createBranch } = Api.branch.create.useMutation()
   const { mutateAsync: updateBranch } = Api.branch.update.useMutation()
   const { mutateAsync: deleteBranch } = Api.branch.delete.useMutation()
@@ -42,6 +29,10 @@ export default function BranchManagementPage() {
   const [isFormVisible, setIsFormVisible] = useState(false)
 
   const onFinish = async (values) => {
+    if (!isAdmin) {
+      enqueueSnackbar('You do not have permission to add branches', { variant: 'error' });
+      return;
+    }
     try {
       await createBranch({ data: values })
       enqueueSnackbar('Branch added successfully', { variant: 'success' })
@@ -54,11 +45,19 @@ export default function BranchManagementPage() {
   }
 
   const handleEdit = (branch) => {
+    if (!isAdmin) {
+      enqueueSnackbar('You do not have permission to edit branches', { variant: 'error' });
+      return;
+    }
     setEditingBranch(branch)
     editForm.setFieldsValue(branch)
   }
 
   const handleUpdate = async (values) => {
+    if (!isAdmin) {
+      enqueueSnackbar('You do not have permission to update branches', { variant: 'error' });
+      return;
+    }
     try {
       await updateBranch({ where: { id: editingBranch.id }, data: values })
       enqueueSnackbar('Branch updated successfully', { variant: 'success' })
@@ -70,6 +69,10 @@ export default function BranchManagementPage() {
   }
 
   const handleDelete = async (id) => {
+    if (!isAdmin) {
+      enqueueSnackbar('You do not have permission to delete branches', { variant: 'error' });
+      return;
+    }
     try {
       await deleteBranch({ where: { id } })
       enqueueSnackbar('Branch deleted successfully', { variant: 'success' })
@@ -117,9 +120,11 @@ export default function BranchManagementPage() {
         <Col xs={24} sm={18} md={12} lg={10} xl={8}>
           <Title level={2}>Branch Management</Title>
           <Text>Add new branches to manage different locations.</Text>
-          <Button type="primary" onClick={() => setIsFormVisible(true)} style={{ marginTop: '20px' }}>
-            Add Branch
-          </Button>
+          {isAdmin && (
+            <Button type="primary" onClick={() => setIsFormVisible(true)} style={{ marginTop: '20px' }}>
+              Add Branch
+            </Button>
+          )}
           <Modal
             title="Add Branch"
             visible={isFormVisible}

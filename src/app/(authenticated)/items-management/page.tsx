@@ -52,6 +52,10 @@ export default function ItemsManagementPage() {
   }, [fetchedItems]);
 
   const handleAddItem = async (values: any) => {
+    if (!isAdmin) {
+      enqueueSnackbar('You do not have permission to add items', { variant: 'error' });
+      return;
+    }
     try {
       // First check if an item with same name exists in the same branch
       const existingItem = items?.find(
@@ -81,6 +85,7 @@ export default function ItemsManagementPage() {
           imageUrl: imageUrl?.url || '',
           branchId: values.branch,
           minimumStockLevel: values.minimumStockLevel,
+          minimumSellPrice: values.minimumSellPrice || 0,
         },
       });
       enqueueSnackbar('Item added successfully', { variant: 'success' });
@@ -99,6 +104,12 @@ export default function ItemsManagementPage() {
 
       if (!fetchedItem) {
         enqueueSnackbar('Item not found', { variant: 'error' });
+        return;
+      }
+
+      // Check if sell price is below minimum sell price
+      if (values.sellPrice < fetchedItem.minimumSellPrice) {
+        enqueueSnackbar(`Cannot sell below minimum price of KES ${fetchedItem.minimumSellPrice}`, { variant: 'error' });
         return;
       }
 
@@ -151,6 +162,10 @@ export default function ItemsManagementPage() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
+    if (!isAdmin) {
+      enqueueSnackbar('You do not have permission to delete items', { variant: 'error' });
+      return;
+    }
     try {
       await deleteItem({ where: { id: itemId } });
       enqueueSnackbar('Item deleted successfully', { variant: 'success' });
@@ -161,6 +176,10 @@ export default function ItemsManagementPage() {
   };
 
   const handleEditItem = async (values: any) => {
+    if (!isAdmin) {
+      enqueueSnackbar('You do not have permission to edit items', { variant: 'error' });
+      return;
+    }
     try {
       const imageUrl = values.image ? await upload({ file: values.image.file }) : null;
       await updateItem({
@@ -176,6 +195,7 @@ export default function ItemsManagementPage() {
           imageUrl: imageUrl?.url || currentItem.imageUrl,
           branchId: values.branch,
           minimumStockLevel: values.minimumStockLevel,
+          minimumSellPrice: values.minimumSellPrice || 0,
         },
       });
       enqueueSnackbar('Item updated successfully', { variant: 'success' });
@@ -283,6 +303,7 @@ const handleStockFilter = (value: string | null) => {
                     quantity: record.quantity,
                     origin: record.origin,
                     minimumStockLevel: record.minimumStockLevel,
+                    minimumSellPrice: record.minimumSellPrice || 0,
                   });
             }}
           >
@@ -424,6 +445,9 @@ const handleStockFilter = (value: string | null) => {
           <Form.Item name="minimumStockLevel" label="Minimum Stock Level" rules={[{ required: true, message: 'Please input the minimum stock level!' }]}>
             <InputNumber min={0} />
           </Form.Item>
+          <Form.Item name="minimumSellPrice" label="Minimum Sell Price" rules={[{ required: true, message: 'Please input the minimum sell price!' }]}>
+            <InputNumber min={0} />
+          </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit">
               Add Item
@@ -469,6 +493,9 @@ const handleStockFilter = (value: string | null) => {
           <Form.Item name="minimumStockLevel" label="Minimum Stock Level" rules={[{ required: true, message: 'Please input the minimum stock level!' }]}>
             <InputNumber min={0} />
           </Form.Item>
+          <Form.Item name="minimumSellPrice" label="Minimum Sell Price" rules={[{ required: true, message: 'Please input the minimum sell price!' }]}>
+            <InputNumber min={0} />
+          </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit">
               Update Item
@@ -496,6 +523,12 @@ const handleStockFilter = (value: string | null) => {
       price: currentItem?.price,
     }}
   >
+    <Alert
+      message={`Minimum sell price: KES ${currentItem?.minimumSellPrice || 0}`}
+      type="info"
+      showIcon
+      style={{ marginBottom: 16 }}
+    />
     <Form.Item name="itemName" label="Item Name">
       <Input disabled />
     </Form.Item>
@@ -546,21 +579,21 @@ const handleStockFilter = (value: string | null) => {
       rules={[
         { required: true, message: 'Please input the sell price!' },
         {
-          validator: (_, value) => {
-            if (value < currentItem?.price) {
-              return Promise.reject(`Selling price cannot be less than cost price (KES ${currentItem?.price?.toLocaleString()})`);
+          validator: async (_, value) => {
+            if (!value) return Promise.reject('Please input the sell price!');
+            if (value < currentItem?.minimumSellPrice) {
+              return Promise.reject(`Cannot sell below minimum price of KES ${currentItem?.minimumSellPrice}`);
             }
             return Promise.resolve();
-          }
+          },
         }
       ]}
     >
       <InputNumber
-        min={currentItem?.price}
         style={{ width: '100%' }}
         formatter={value => `KES ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
         parser={value => value!.replace(/KES\s?|(,*)/g, '')}
-        placeholder="Enter selling price"
+        placeholder={`Minimum sell price: KES ${currentItem?.minimumSellPrice}`}
       />
     </Form.Item>
     

@@ -1,27 +1,22 @@
+'use client'
+
 import { useUserContext } from '@/core/context'
-import { Col, Layout, Row } from 'antd'
 import { useRouter } from 'next/navigation'
-import { ReactNode } from 'react'
-import { useDesignSystem } from '../../provider'
+import { useDesignSystem } from '@/designSystem/provider'
 import { Leftbar } from './components/Leftbar'
-import { Logo } from './components/Logo'
 import { Topbar } from './components/Topbar/index.layout'
+import { Logo } from './components/Logo'
 
 interface Props {
-  children: ReactNode
+  children: React.ReactNode
 }
 
 export const NavigationLayout: React.FC<Props> = ({ children }) => {
-  const router = useRouter()
-
-  const { user, authenticationStatus: isLoggedIn, checkRole } = useUserContext()
+  const { checkRole, authenticationStatus } = useUserContext()
   const isAdmin = checkRole('admin')
-
+  const router = useRouter()
+  const goTo = (path: string) => router.push(path)
   const { isMobile } = useDesignSystem()
-
-  const goTo = (url: string) => {
-    router.push(url)
-  }
 
   // Base navigation items for all users
   let itemsLeftbar = [
@@ -35,38 +30,29 @@ export const NavigationLayout: React.FC<Props> = ({ children }) => {
       label: 'Items Management',
       onClick: () => goTo('/items-management'),
     },
+    {
+      key: '/stock-management',
+      label: 'Stock Management',
+      onClick: () => goTo('/stock-management'),
+    },
+    {
+      key: '/branch-management',
+      label: 'Branch Management',
+      onClick: () => goTo('/branch-management'),
+    },
   ]
 
-  // Admin-only navigation items
+  // Add admin-only pages
   if (isAdmin) {
-    itemsLeftbar = [
-      ...itemsLeftbar,
-      {
-        key: '/stock-management',
-        label: 'Sales Management',
-        onClick: () => goTo('/stock-management'),
-      },
-      {
-        key: '/branch-management',
-        label: 'Branch Management',
-        onClick: () => goTo('/branch-management'),
-      },
-      {
-        key: '/admin-management',
-        label: 'Admin Management',
-        onClick: () => goTo('/admin-management'),
-      },
-    ]
+    itemsLeftbar.push({
+      key: '/admin-management',
+      label: 'Admin Management',
+      onClick: () => goTo('/admin-management'),
+    })
   }
 
   let itemsTopbar = []
-
   let itemsMobile = [
-    {
-      key: 'profile',
-      label: 'Profile',
-      onClick: () => goTo('/profile'),
-    },
     ...itemsTopbar,
     ...itemsLeftbar,
   ]
@@ -74,52 +60,67 @@ export const NavigationLayout: React.FC<Props> = ({ children }) => {
   const isLeftbar = itemsLeftbar.length > 0 && !isMobile
 
   return (
-    <>
-      <Layout>
-        <Row
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'row',
+        width: '100%',
+        height: '100%',
+        minHeight: '100vh',
+        position: 'relative',
+      }}
+    >
+      {isLeftbar && (
+        <div style={{
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          height: '100vh',
+          zIndex: 1000,
+        }}>
+          <Leftbar items={itemsLeftbar} logo={<Logo className="m-2" />} />
+        </div>
+      )}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          width: '100%',
+          height: '100%',
+          minHeight: '100vh',
+          marginLeft: isLeftbar ? '250px' : '0',
+        }}
+      >
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          width: isLeftbar ? 'calc(100% - 250px)' : '100%',
+          zIndex: 1000,
+        }}>
+          <Topbar
+            logo={!isLeftbar && <Logo className="m-2" />}
+            itemsMobile={itemsMobile}
+            isMobile={isMobile}
+            isLoggedIn={authenticationStatus === 'authenticated'}
+            items={itemsTopbar}
+          />
+        </div>
+        <div
           style={{
-            height: '100vh',
-            width: '100vw',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            width: '100%',
+            height: '100%',
+            padding: '20px',
+            marginTop: '64px',
+            overflowY: 'auto',
           }}
         >
-          {isLeftbar && (
-            <Col>
-              <Leftbar items={itemsLeftbar} logo={<Logo className="m-2" />} />
-            </Col>
-          )}
-
-          <Col
-            style={{
-              flex: 1,
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            }}
-          >
-            <Topbar
-              isMobile={isMobile}
-              itemsMobile={itemsMobile}
-              isLoggedIn={isLoggedIn === 'authenticated'}
-              items={itemsTopbar}
-              logo={!isLeftbar && <Logo height={40} />}
-            />
-
-            <Col
-              style={{
-                flex: 1,
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-              }}
-            >
-              {children}
-            </Col>
-          </Col>
-        </Row>
-      </Layout>
-    </>
+          {children}
+        </div>
+      </div>
+    </div>
   )
 }

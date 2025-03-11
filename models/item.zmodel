@@ -17,6 +17,7 @@ model Item {
     branch    Branch?    @relation(fields: [branchId], references: [id], name:"branch")  
     deleted   Boolean      @default(false)
     minimumStockLevel Float @default(0)
+    minimumSellPrice Float @default(0)
 
 sales     Sale[]    @relation("item")  
     stockTransfers StockTransfer[] @relation("item")  
@@ -25,6 +26,6 @@ sales     Sale[]    @relation("item")
       
       @@allow("read", true)
       @@allow("create", auth().roles?[name == 'admin'])
-      @@allow("update", auth().roles?[name == 'admin'])
+      @@allow("update", auth().roles?[name == 'admin'] || (auth() != null && future().quantity < this.quantity))
       @@allow("delete", auth().roles?[name == 'admin'])
 }

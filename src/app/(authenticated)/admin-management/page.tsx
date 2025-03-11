@@ -19,7 +19,7 @@ import {
   Tag,
   Alert,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, DollarOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, DollarOutlined, DownloadOutlined } from '@ant-design/icons'
 const { Title, Text } = Typography
 const { Option } = Select
 const { RangePicker } = DatePicker
@@ -56,8 +56,18 @@ export default function AdminManagementPage() {
     data: salesData,
     isLoading: isLoadingSales,
   } = Api.sale.findMany.useQuery({
-    include: { user: true },
     orderBy: { saleDate: 'desc' },
+    select: {
+      id: true,
+      saleDate: true,
+      userName: true,
+      itemName: true,
+      branchName: true,
+      quantitySold: true,
+      sellPrice: true,
+      profit: true,
+      userId: true,
+    }
   }, {
     onSuccess: (data) => {
       console.log('Sales data fetched:', data);
@@ -221,7 +231,7 @@ export default function AdminManagementPage() {
   };
 
   const calculateTotalRevenue = () => {
-    return getFilteredSales().reduce((total, sale) => total + (sale.salePrice * sale.quantitySold), 0);
+    return getFilteredSales().reduce((total, sale) => total + (sale.sellPrice * sale.quantitySold), 0);
   };
 
   const calculateTotalProfit = () => {
@@ -275,6 +285,51 @@ export default function AdminManagementPage() {
       render: (profit) => profit ? <Tag color="green">{`KES ${profit.toFixed(2)}`}</Tag> : <Tag color="gray">N/A</Tag>,
     },
   ];
+
+  // Add function to handle CSV export
+  const handleExportCSV = () => {
+    const filteredSales = getFilteredSales();
+    if (filteredSales.length === 0) {
+      enqueueSnackbar('No data to export', { variant: 'warning' });
+      return;
+    }
+
+    // Create CSV content
+    const headers = [
+      'Date',
+      'User',
+      'Item',
+      'Branch',
+      'Quantity',
+      'Price (KES)',
+      'Total (KES)',
+      'Profit (KES)'
+    ];
+
+    const csvContent = [
+      headers.join(','),
+      ...filteredSales.map(sale => [
+        dayjs(sale.saleDate).format('DD-MM-YYYY HH:mm'),
+        sale.userName,
+        sale.itemName,
+        sale.branchName,
+        sale.quantitySold,
+        sale.sellPrice.toFixed(2),
+        (sale.sellPrice * sale.quantitySold).toFixed(2),
+        sale.profit.toFixed(2)
+      ].join(','))
+    ].join('\n');
+
+    // Create and trigger download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `sales_report_${dayjs().format('YYYY-MM-DD_HH-mm')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <PageLayout layout="full-width">
@@ -366,7 +421,17 @@ export default function AdminManagementPage() {
                     <Col span={24}>
                       <Card>
                         <Space direction="vertical" style={{ width: '100%' }}>
-                          <Title level={4}>Filter Sales</Title>
+                          <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+                            <Title level={4}>Filter Sales</Title>
+                            <Button 
+                              type="primary" 
+                              icon={<DownloadOutlined />} 
+                              onClick={handleExportCSV}
+                              disabled={!salesData || salesData.length === 0}
+                            >
+                              Export to CSV
+                            </Button>
+                          </Space>
                           <Space>
                             <Select
                               placeholder="Select User"
