@@ -22,7 +22,8 @@
     "env:init": "node scripts/env.js",
     "format": "pnpm run format:code && pnpm run format:models",
     "format:code": "prettier --write \"src/!(*.marblism)/**/*.{ts,tsx}\"",
-    "format:models": "node scripts/format.models.js"
+    "format:models": "node scripts/format.models.js",
+    "postbuild": "prisma migrate deploy"
   },
   "dependencies": {
     "@ant-design/icons": "^5.3.7",

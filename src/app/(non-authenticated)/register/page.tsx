@@ -2,12 +2,12 @@
 import { Api } from '@/core/trpc'
 import { AppHeader } from '@/designSystem/ui/AppHeader'
 import { User } from '@prisma/client'
-import { Button, Flex, Form, Input, Typography, Spin } from 'antd'
+import { Button, Flex, Form, Input, Typography, Spin, Progress } from 'antd'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useSnackbar } from 'notistack'
 import { useState } from 'react'
-import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons'
+import { UserOutlined, LockOutlined, MailOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 
 interface AuthError extends Error {
   code?: string;
@@ -20,6 +20,14 @@ export default function RegisterPage() {
   const [form] = Form.useForm()
   const [isLoading, setLoading] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
+  const [passwordStrength, setPasswordStrength] = useState(0)
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    special: false
+  })
 
   const { mutateAsync: registerUser } = Api.authentication.register.useMutation()
 
@@ -31,6 +39,30 @@ export default function RegisterPage() {
       return 'Too many attempts. Please try again later'
     }
     return error.message || 'An unexpected error occurred'
+  }
+
+  const checkPasswordStrength = (password: string) => {
+    const requirements = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /[0-9]/.test(password),
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+    }
+    
+    setPasswordRequirements(requirements)
+    
+    // Calculate strength percentage
+    const strength = Object.values(requirements).filter(Boolean).length * 20
+    setPasswordStrength(strength)
+    
+    return requirements
+  }
+
+  const getStrengthColor = (strength: number) => {
+    if (strength < 40) return '#ff4d4f' // Red
+    if (strength < 80) return '#faad14' // Yellow
+    return '#52c41a' // Green
   }
 
   const handleSubmit = async (values: Partial<User>) => {
@@ -142,7 +174,77 @@ export default function RegisterPage() {
             <Form.Item
               label="Password"
               name="password"
-              rules={[{ required: true, message: 'Password is required' }]}
+              rules={[
+                { required: true, message: 'Password is required' },
+                {
+                  validator: async (_, value) => {
+                    if (!value) return Promise.resolve()
+                    
+                    const requirements = checkPasswordStrength(value)
+                    
+                    if (!requirements.length) {
+                      return Promise.reject('Password must be at least 8 characters long')
+                    }
+                    if (!requirements.uppercase) {
+                      return Promise.reject('Password must contain at least one uppercase letter')
+                    }
+                    if (!requirements.lowercase) {
+                      return Promise.reject('Password must contain at least one lowercase letter')
+                    }
+                    if (!requirements.number) {
+                      return Promise.reject('Password must contain at least one number')
+                    }
+                    if (!requirements.special) {
+                      return Promise.reject('Password must contain at least one special character')
+                    }
+                    
+                    return Promise.resolve()
+                  }
+                }
+              ]}
+              help={
+                <div style={{ marginTop: '8px' }}>
+                  <Progress
+                    percent={passwordStrength}
+                    strokeColor={getStrengthColor(passwordStrength)}
+                    showInfo={false}
+                    size="small"
+                    style={{ marginBottom: '8px' }}
+                  />
+                  <div style={{ fontSize: '12px' }}>
+                    <div>
+                      {passwordRequirements.length ? 
+                        <CheckCircleOutlined style={{ color: '#52c41a' }} /> : 
+                        <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                      } At least 8 characters
+                    </div>
+                    <div>
+                      {passwordRequirements.uppercase ? 
+                        <CheckCircleOutlined style={{ color: '#52c41a' }} /> : 
+                        <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                      } One uppercase letter
+                    </div>
+                    <div>
+                      {passwordRequirements.lowercase ? 
+                        <CheckCircleOutlined style={{ color: '#52c41a' }} /> : 
+                        <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                      } One lowercase letter
+                    </div>
+                    <div>
+                      {passwordRequirements.number ? 
+                        <CheckCircleOutlined style={{ color: '#52c41a' }} /> : 
+                        <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                      } One number
+                    </div>
+                    <div>
+                      {passwordRequirements.special ? 
+                        <CheckCircleOutlined style={{ color: '#52c41a' }} /> : 
+                        <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                      } One special character
+                    </div>
+                  </div>
+                </div>
+              }
             >
               <Input.Password
                 type="password"
@@ -150,6 +252,7 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 disabled={isLoading}
                 prefix={<LockOutlined />}
+                onChange={(e) => checkPasswordStrength(e.target.value)}
               />
             </Form.Item>
 
