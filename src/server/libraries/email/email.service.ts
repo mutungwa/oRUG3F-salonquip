@@ -18,13 +18,7 @@ export class Service {
   public Type = EmailType
 
   constructor() {
-    const isProduction = process.env.NODE_ENV === 'production'
-
-    if (isProduction) {
-      this.provider = new ResendProvider()
-    } else {
-      this.provider = new NodemailerProvider()
-    }
+    this.provider = new NodemailerProvider()
   }
 
   async send(options: SendOptions): Promise<void> {
