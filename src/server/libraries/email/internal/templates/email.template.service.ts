@@ -2,83 +2,79 @@ import { FileHelper } from '@/core/helpers/file'
 import { EmailType } from '../email.type'
 import { SendOptions } from '../providers/provider'
 import { Components } from './components'
+import path from 'path'
+import fs from 'fs'
 
 export class EmailTemplateService {
-  private pathTemplates: string = `${FileHelper.getRoot()}/src/server/libraries/email/internal/templates`
+  private getTemplatePath(): string {
+    // In production, templates are in the .next/server directory
+    if (process.env.NODE_ENV === 'production') {
+      return path.join(process.cwd(), '.next', 'server', 'src', 'server', 'libraries', 'email', 'internal', 'templates');
+    }
+    // In development, use the source directory
+    return path.join(process.cwd(), 'src', 'server', 'libraries', 'email', 'internal', 'templates');
+  }
 
   private mapping: Record<EmailType, string> = {
-    [EmailType.AUTHORIZATION_VERIFICATION_CODE]:
-      'authorization-verification-code',
+    [EmailType.AUTHORIZATION_VERIFICATION_CODE]: 'authorization-verification-code',
     [EmailType.AUTHENTICATION_WELCOME]: 'authentication-welcome',
-    [EmailType.AUTHENTICATION_FORGOT_PASSWORD]:
-      'authentication-forgot-password',
+    [EmailType.AUTHENTICATION_FORGOT_PASSWORD]: 'authentication-forgot-password',
     [EmailType.DEFAULT]: 'default',
   }
 
   get(options: SendOptions): string {
     const values = options.variables ?? { content: options.content }
+    const templatePath = this.getTemplatePath()
 
-    const pathBase = this.getPathBase()
+    try {
+      // Read all required template files
+      const pathBase = path.join(templatePath, 'base.html')
+      const pathCSS = path.join(templatePath, 'style.css')
+      const pathTemplate = path.join(templatePath, `${this.mapping[options.type]}.template.html`)
 
-    const pathCSS = this.getPathCSS()
+      console.log('Template paths:', {
+        base: pathBase,
+        css: pathCSS,
+        template: pathTemplate,
+        exists: {
+          base: fs.existsSync(pathBase),
+          css: fs.existsSync(pathCSS),
+          template: fs.existsSync(pathTemplate)
+        }
+      });
 
-    const pathTemplate = this.getPathTemplate(options.type)
+      const contentBase = fs.readFileSync(pathBase, 'utf-8')
+      const contentCSS = fs.readFileSync(pathCSS, 'utf-8')
+      const contentTemplate = fs.readFileSync(pathTemplate, 'utf-8')
 
-    const contentBase = FileHelper.findFileContent(pathBase)
+      // Build the email content
+      let content = this.buildContent(contentTemplate, values)
+      content = this.buildContent(contentBase, { style: contentCSS, content })
+      content = this.buildComponents(content)
 
-    const contentCSS = FileHelper.findFileContent(pathCSS)
-
-    const contentTemplate = FileHelper.findFileContent(pathTemplate)
-
-    let content = this.buildContent(contentTemplate, values)
-
-    content = this.buildContent(contentBase, { style: contentCSS, content })
-
-    content = this.buildComponents(content)
-
-    return content
-  }
-
-  private getPathTemplate(type: EmailType): string {
-    const name = this.mapping[type] ?? this.mapping[EmailType.DEFAULT]
-
-    const path = `${this.pathTemplates}/${name}.template.html`
-
-    return path
-  }
-
-  private getPathBase(): string {
-    const path = `${this.pathTemplates}/base.html`
-
-    return path
-  }
-
-  private getPathCSS(): string {
-    const path = `${this.pathTemplates}/style.css`
-
-    return path
-  }
-
-  private buildContent(content: string, values: Record<string, any>): string {
-    let contentBuilt = content
-
-    for (const [key, value] of Object.entries(values)) {
-      const token = new RegExp(`\{\{ ${key} \}\}`, 'g')
-
-      contentBuilt = contentBuilt.replace(token, value)
+      return content
+    } catch (error) {
+      console.error('Error reading template files:', {
+        error,
+        templatePath,
+        type: options.type,
+        mapping: this.mapping[options.type]
+      })
+      throw new Error(`Failed to load email template: ${error.message}`)
     }
+  }
 
-    return contentBuilt
+  private buildContent(content: string, values: Record<string, string>): string {
+    return Object.entries(values).reduce((acc, [key, value]) => {
+      const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
+      return acc.replace(regex, value)
+    }, content)
   }
 
   private buildComponents(content: string): string {
-    let contentUpdated = content
-
-    for (const [key, value] of Object.entries(Components)) {
-      const tag = new RegExp(`${key}`, 'g')
-      contentUpdated = contentUpdated.replace(tag, value)
-    }
-
-    return contentUpdated
+    return Object.entries(Components).reduce((acc, [key, value]) => {
+      const regex = new RegExp(`<${key}[^>]*>([\\s\\S]*?)<\\/${key}>`, 'g')
+      return acc.replace(regex, (_, inner) => value(inner))
+    }, content)
   }
 }
