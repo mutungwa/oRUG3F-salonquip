@@ -2,9 +2,14 @@ import { FileHelper } from '@/core/helpers/file'
 import { EmailType } from '../email.type'
 import { SendOptions } from '../providers/provider'
 import { Components } from './components'
+import path from 'path'
+import fs from 'fs'
 
 export class EmailTemplateService {
-  private pathTemplates: string = `${FileHelper.getRoot()}/src/server/libraries/email/internal/templates`
+  private getTemplatePath() {
+    // Use __dirname to get the current directory path
+    return path.join(process.cwd(), 'src', 'server', 'libraries', 'email', 'internal', 'templates');
+  }
 
   private mapping: Record<EmailType, string> = {
     [EmailType.AUTHORIZATION_VERIFICATION_CODE]:
@@ -17,68 +22,48 @@ export class EmailTemplateService {
 
   get(options: SendOptions): string {
     const values = options.variables ?? { content: options.content }
+    const templatePath = this.getTemplatePath();
 
-    const pathBase = this.getPathBase()
+    try {
+      const pathBase = path.join(templatePath, 'base.html');
+      const pathCSS = path.join(templatePath, 'style.css');
+      const pathTemplate = path.join(templatePath, `${this.mapping[options.type]}.template.html`);
 
-    const pathCSS = this.getPathCSS()
+      const contentBase = fs.readFileSync(pathBase, 'utf-8');
+      const contentCSS = fs.readFileSync(pathCSS, 'utf-8');
+      const contentTemplate = fs.readFileSync(pathTemplate, 'utf-8');
 
-    const pathTemplate = this.getPathTemplate(options.type)
+      let content = this.buildContent(contentTemplate, values)
+      content = this.buildContent(contentBase, { style: contentCSS, content })
+      content = this.buildComponents(content)
 
-    const contentBase = FileHelper.findFileContent(pathBase)
-
-    const contentCSS = FileHelper.findFileContent(pathCSS)
-
-    const contentTemplate = FileHelper.findFileContent(pathTemplate)
-
-    let content = this.buildContent(contentTemplate, values)
-
-    content = this.buildContent(contentBase, { style: contentCSS, content })
-
-    content = this.buildComponents(content)
-
-    return content
-  }
-
-  private getPathTemplate(type: EmailType): string {
-    const name = this.mapping[type] ?? this.mapping[EmailType.DEFAULT]
-
-    const path = `${this.pathTemplates}/${name}.template.html`
-
-    return path
-  }
-
-  private getPathBase(): string {
-    const path = `${this.pathTemplates}/base.html`
-
-    return path
-  }
-
-  private getPathCSS(): string {
-    const path = `${this.pathTemplates}/style.css`
-
-    return path
-  }
-
-  private buildContent(content: string, values: Record<string, any>): string {
-    let contentBuilt = content
-
-    for (const [key, value] of Object.entries(values)) {
-      const token = new RegExp(`\{\{ ${key} \}\}`, 'g')
-
-      contentBuilt = contentBuilt.replace(token, value)
+      return content
+    } catch (error) {
+      console.error('Error reading template files:', error);
+      // Fallback to a basic email template if files cannot be read
+      return `
+        <html>
+          <body>
+            <h1>${options.subject}</h1>
+            <p>${options.content || 'Please check your account for updates.'}</p>
+          </body>
+        </html>
+      `;
     }
+  }
 
-    return contentBuilt
+  private buildContent(content: string, values: Record<string, string>): string {
+    return Object.entries(values).reduce((acc, [key, value]) => {
+      return acc.replace(new RegExp(`{{\\s*${key}\\s*}}`, 'g'), value)
+    }, content)
   }
 
   private buildComponents(content: string): string {
-    let contentUpdated = content
-
-    for (const [key, value] of Object.entries(Components)) {
-      const tag = new RegExp(`${key}`, 'g')
-      contentUpdated = contentUpdated.replace(tag, value)
-    }
-
-    return contentUpdated
+    return Object.entries(Components).reduce((acc, [key, value]) => {
+      return acc.replace(
+        new RegExp(`<${key}>(.*?)<\/${key}>`, 'gs'),
+        value.replace('{{content}}', '$1'),
+      )
+    }, content)
   }
 }
