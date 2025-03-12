@@ -1,0 +1,14 @@
+{
+    "builds": [
+      {
+        "src": "src/server/libraries/email/internal/templates/*",
+        "use": "@vercel/static"
+      }
+    ],
+    "routes": [
+      {
+        "src": "/templates/(.*)",
+        "dest": "/src/server/libraries/email/internal/templates/$1"
+      }
+    ]
+  }
