@@ -121,14 +121,51 @@ export const AuthenticationRouter = Trpc.createRouter({
         const url = Configuration.getBaseUrl()
         const urlResetPassword = `${url}/reset-password/${token}`
 
+        // Define the HTML template
+        const htmlTemplate = `
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Reset Your Password</title>
+            <style>
+              .email-container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+                font-family: Arial, sans-serif;
+                color: #333;
+              }
+              .button {
+                display: inline-block;
+                padding: 10px 20px;
+                margin-top: 20px;
+                background-color: #007bff;
+                color: #fff;
+                text-decoration: none;
+                border-radius: 5px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="email-container">
+              <h1>Hello, ${user.name ?? user.email}</h1>
+              <p>We received a request to reset your password. Click the button below to reset it:</p>
+              <a href="${urlResetPassword}" class="button">Reset Password</a>
+              <p>If you did not request a password reset, please ignore this email.</p>
+            </div>
+          </body>
+          </html>
+        `;
+
         await EmailService.send({
           type: EmailService.Type.AUTHENTICATION_FORGOT_PASSWORD,
           email: user.email,
           name: user.name ?? user.email,
           subject: `Reset your password`,
-          variables: {
-            url_password_reset: urlResetPassword,
-          },
+          content: htmlTemplate,
+          variables: {},
         })
 
         console.info('Reset password email sent', { userId: user.id })

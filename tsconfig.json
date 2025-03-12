@@ -27,7 +27,7 @@
     },
     "moduleResolution": "node",
     "skipLibCheck": true,
-    "strict": false,
+    "strict": true,
     "strictNullChecks": false,
     "noImplicitAny": false,
     "strictBindCallApply": false,
