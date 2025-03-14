@@ -38,6 +38,15 @@ export const AuthenticationRouter = Trpc.createRouter({
           })
         }
 
+        // Check if there is already an admin
+        const adminCount = await ctx.databaseUnprotected.admin.count();
+        if (adminCount > 0) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Registration is disabled. An admin already exists.',
+          });
+        }
+
         // Check if this is the first user
         const userCount = await ctx.databaseUnprotected.user.count();
         const isFirstUser = userCount === 0;
@@ -202,6 +211,21 @@ export const AuthenticationRouter = Trpc.createRouter({
           code: 'UNAUTHORIZED',
           message: 'Invalid or expired reset password link',
         })
+      }
+    }),
+
+  countAdmins: Trpc.procedurePublic
+    .query(async ({ ctx }) => {
+      try {
+        // Count the number of admin records
+        const count = await ctx.databaseUnprotected.admin.count();
+        return count;
+      } catch (error) {
+        console.error('Failed to count admins', { error });
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Could not count admins',
+        });
       }
     }),
 })

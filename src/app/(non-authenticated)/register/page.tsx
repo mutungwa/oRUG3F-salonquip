@@ -6,7 +6,7 @@ import { Button, Flex, Form, Input, Typography, Spin, Progress } from 'antd'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useSnackbar } from 'notistack'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { UserOutlined, LockOutlined, MailOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 
 interface AuthError extends Error {
@@ -20,6 +20,7 @@ export default function RegisterPage() {
   const [form] = Form.useForm()
   const [isLoading, setLoading] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
+  const [isRegistrationDisabled, setIsRegistrationDisabled] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState(0)
   const [passwordRequirements, setPasswordRequirements] = useState({
     length: false,
@@ -30,6 +31,13 @@ export default function RegisterPage() {
   })
 
   const { mutateAsync: registerUser } = Api.authentication.register.useMutation()
+  const { data: adminCount } = Api.authentication.countAdmins.useQuery();
+
+  useEffect(() => {
+    if (adminCount && adminCount > 0) {
+      setIsRegistrationDisabled(true);
+    }
+  }, [adminCount]);
 
   const getErrorMessage = (error: AuthError): string => {
     if (error.code === 'USER_EXISTS') {
@@ -133,11 +141,8 @@ export default function RegisterPage() {
       >
         <AppHeader description="Welcome!" />
 
-        {isRedirecting ? (
-          <Flex vertical align="center" gap="middle">
-            <Spin size="large" />
-            <Typography.Text>Setting up your account...</Typography.Text>
-          </Flex>
+        {isRegistrationDisabled ? (
+          <Typography.Text type="danger">Registration is disabled. An admin already exists.</Typography.Text>
         ) : (
           <Form
             form={form}

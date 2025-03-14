@@ -53,60 +53,64 @@ export default function LoginPage() {
 
   const getErrorMessage = (error: AuthError): string => {
     if (error.code === 'INVALID_CREDENTIALS') {
-      return 'Invalid email or password'
+      return 'Invalid email or password';
     }
     if (error.statusCode === 429) {
-      return 'Too many login attempts. Please try again later'
+      return 'Too many login attempts. Please try again later';
     }
-    return error.message || 'An unexpected error occurred'
+    return error.message || 'An unexpected error occurred';
   }
 
   const handleSubmit = async (values: LoginCredentials) => {
-    setLoading(true)
-    form.validateFields() // Ensure all fields are valid
+    setLoading(true);
+    form.validateFields(); // Ensure all fields are valid
 
     try {
       // Sanitize inputs
       const sanitizedValues = {
         email: values.email?.trim().toLowerCase(),
         password: values.password,
-      }
+      };
 
       const signInResult = await signIn('credentials', {
         ...sanitizedValues,
         callbackUrl: '/home',
         redirect: false,
-      })
+      });
 
       if (signInResult?.error) {
-        throw new Error(signInResult.error)
+        // Check for specific error messages
+        if (signInResult.error.includes('CredentialsSignin')) {
+          throw new Error('Invalid email or password');
+        }
+        throw new Error(signInResult.error);
       }
 
       if (signInResult?.url) {
-        setIsRedirecting(true)
-        router.push(signInResult.url)
+        setIsRedirecting(true);
+        router.push(signInResult.url);
       }
 
     } catch (error: any) {
-      const errorMessage = getErrorMessage(error as AuthError)
+      const errorMessage = getErrorMessage(error as AuthError);
       
       enqueueSnackbar(`Login failed: ${errorMessage}`, {
         variant: 'error',
         preventDuplicate: true,
-      })
+      });
 
       console.error('Login error:', {
         message: error.message,
         code: error.code,
-      })
+      });
 
       form.setFields([
         {
           name: 'password',
           value: '',
         },
-      ])
-      setLoading(false)
+      ]);
+      setLoading(false);
     }
   }
 
