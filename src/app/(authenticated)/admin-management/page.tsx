@@ -1,35 +1,35 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useUserContext } from '@/core/context'
+import { Api } from '@/core/trpc'
+import { PageLayout } from '@/designSystem/layouts/Page.layout'
+import { DeleteOutlined, DollarOutlined, DownloadOutlined, EditOutlined, GiftOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons'
 import {
-  Typography,
-  Form,
-  Input,
-  Button,
-  Table,
-  Space,
-  Modal,
-  Select,
-  Tabs,
-  DatePicker,
-  Card,
-  Statistic,
-  Row,
-  Col,
-  Tag,
-  Alert,
+    Alert,
+    Button,
+    Card,
+    Col,
+    DatePicker,
+    Form,
+    Input,
+    InputNumber,
+    Modal,
+    Row,
+    Select,
+    Space,
+    Statistic,
+    Table,
+    Tabs,
+    Tag,
+    Typography,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, DollarOutlined, DownloadOutlined } from '@ant-design/icons'
+import dayjs from 'dayjs'
+import { useParams, useRouter } from 'next/navigation'
+import { useSnackbar } from 'notistack'
+import { useState } from 'react'
 const { Title, Text } = Typography
 const { Option } = Select
 const { RangePicker } = DatePicker
-import { useUserContext } from '@/core/context'
-import { useRouter, useParams } from 'next/navigation'
-import { useUploadPublic } from '@/core/hooks/upload'
-import { useSnackbar } from 'notistack'
-import dayjs from 'dayjs'
-import { Api } from '@/core/trpc'
-import { PageLayout } from '@/designSystem/layouts/Page.layout'
 
 export default function AdminManagementPage() {
   const router = useRouter()
@@ -85,6 +85,9 @@ export default function AdminManagementPage() {
   const { mutateAsync: deleteRole } = Api.role.delete.useMutation()
   const { mutateAsync: deleteAdmin } = Api.admin.delete.useMutation()
   const { data: roles } = Api.role.findMany.useQuery({})
+
+  const { data: customers, refetch: refetchCustomers } = Api.customer.findMany.useQuery({})
+  const { mutateAsync: updateCustomer } = Api.customer.update.useMutation()
 
   const showModal = (user = null) => {
     setEditingUser(user)
@@ -179,11 +182,9 @@ export default function AdminManagementPage() {
           });
         }
         
-        enqueueSnackbar('User created successfully', { variant: 'success' })
+        refetch()
+        handleCancel()
       }
-      
-      refetch()
-      handleCancel()
     } catch (error) {
       console.error('Error saving user:', error);
       enqueueSnackbar('Error saving user: ' + (error.message || 'Unknown error'), { variant: 'error' })
@@ -330,6 +331,19 @@ export default function AdminManagementPage() {
     link.click();
     document.body.removeChild(link);
   };
+
+  const handleUpdateLoyaltyPoints = async (customerId: string, points: number) => {
+    try {
+      await updateCustomer({
+        where: { id: customerId },
+        data: { loyaltyPoints: points }
+      })
+      enqueueSnackbar('Loyalty points updated successfully', { variant: 'success' })
+      refetchCustomers()
+    } catch (error) {
+      enqueueSnackbar('Failed to update loyalty points', { variant: 'error' })
+    }
+  }
 
   return (
     <PageLayout layout="full-width">
@@ -497,6 +511,74 @@ export default function AdminManagementPage() {
                   />
                 </>
               )
+            },
+            {
+              key: 'loyalty',
+              label: <span><GiftOutlined /> Loyalty Program</span>,
+              children: (
+                <>
+                  <Row gutter={[16, 16]} style={{ marginTop: '20px' }}>
+                    <Col span={24}>
+                      <Card>
+                        <Title level={4}>Customer Loyalty Points</Title>
+                        <Table
+                          dataSource={customers}
+                          columns={[
+                            {
+                              title: 'Customer Name',
+                              dataIndex: 'name',
+                              key: 'name',
+                            },
+                            {
+                              title: 'Phone Number',
+                              dataIndex: 'phoneNumber',
+                              key: 'phoneNumber',
+                            },
+                            {
+                              title: 'Loyalty Points',
+                              dataIndex: 'loyaltyPoints',
+                              key: 'loyaltyPoints',
+                              render: (points: number) => points.toFixed(2),
+                            },
+                            {
+                              title: 'Referred By',
+                              key: 'referredBy',
+                              render: (_, record) => {
+                                const referrer = customers?.find(c => c.id === record.referredBy)
+                                return referrer ? referrer.name : '-'
+                              }
+                            },
+                            {
+                              title: 'Number of Referrals',
+                              key: 'referrals',
+                              render: (_, record) => {
+                                return customers?.filter(c => c.referredBy === record.id).length || 0
+                              }
+                            },
+                            {
+                              title: 'Actions',
+                              key: 'actions',
+                              render: (_, record) => (
+                                <Space>
+                                  <InputNumber
+                                    defaultValue={record.loyaltyPoints}
+                                    onChange={(value) => {
+                                      if (value !== null) {
+                                        handleUpdateLoyaltyPoints(record.id, value)
+                                      }
+                                    }}
+                                  />
+                                </Space>
+                              ),
+                            },
+                          ]}
+                          rowKey="id"
+                        />
+                      </Card>
+                    </Col>
+                  </Row>
+                </>
+              ),
             }
           ]}
         />

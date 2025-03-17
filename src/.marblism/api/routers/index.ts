@@ -10,6 +10,7 @@ import createSaleRouter from "./Sale.router";
 import createItemRouter from "./Item.router";
 import createBranchRouter from "./Branch.router";
 import createStockTransferRouter from "./StockTransfer.router";
+import createCustomerRouter from "./Customer.router";
 import { ClientType as AccountClientType } from "./Account.router";
 import { ClientType as UserClientType } from "./User.router";
 import { ClientType as SessionClientType } from "./Session.router";
@@ -19,6 +20,7 @@ import { ClientType as SaleClientType } from "./Sale.router";
 import { ClientType as ItemClientType } from "./Item.router";
 import { ClientType as BranchClientType } from "./Branch.router";
 import { ClientType as StockTransferClientType } from "./StockTransfer.router";
+import { ClientType as CustomerClientType } from "./Customer.router";
 
 export type BaseConfig = AnyRootConfig;
 
@@ -52,6 +54,7 @@ export function createRouter<Config extends BaseConfig>(router: RouterFactory<Co
         item: createItemRouter(router, procedure),
         branch: createBranchRouter(router, procedure),
         stockTransfer: createStockTransferRouter(router, procedure),
+        customer: createCustomerRouter(router, procedure),
     }
     );
 }
@@ -66,4 +69,5 @@ export interface ClientType<AppRouter extends AnyRouter> {
     item: ItemClientType<AppRouter>;
     branch: BranchClientType<AppRouter>;
     stockTransfer: StockTransferClientType<AppRouter>;
+    customer: CustomerClientType<AppRouter>;
 }

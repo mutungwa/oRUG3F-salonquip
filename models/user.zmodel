@@ -18,7 +18,7 @@ model User {
     sessions         Session[]
     roles            Role[]
     admins           Admin[]   @relation("user")
-    sales            Sale[]    @relation("sales")
+    sales            Sale[]    @relation("user")
 
 @@auth()
     @@allow("all", auth().id == this.id)

@@ -1,7 +1,6 @@
-
- import "./item.zmodel"  
- import "./sale.zmodel"  
- import "./stockTransfer.zmodel"  
+import "./item.zmodel"  
+import "./sale.zmodel"  
+import "./stockTransfer.zmodel"  
 
 model Branch {
 
@@ -10,11 +9,11 @@ model Branch {
     location  String      
     phoneNumber String      
 
-items     Item[]    @relation("branch")  
+    items     Item[]    @relation("branch")  
     sales     Sale[]    @relation("branch")  
     stockTransfersAsFromBranch StockTransfer[] @relation("fromBranch")  
     stockTransfersAsToBranch StockTransfer[] @relation("toBranch")  
-      dateCreated DateTime @default(now())
-      dateUpdated DateTime @updatedAt  @default(now())
-      @@allow("all", true)
+    dateCreated DateTime @default(now())
+    dateUpdated DateTime @updatedAt @default(now())
+    @@allow("all", true)
 }

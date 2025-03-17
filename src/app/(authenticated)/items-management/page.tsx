@@ -6,8 +6,7 @@ import { Api } from '@/core/trpc';
 import { PageLayout } from '@/designSystem/layouts/Page.layout';
 import { DeleteOutlined, DollarOutlined, EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { Prisma } from '@prisma/client';
-import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Typography, Tag, Alert } from 'antd';
-import dayjs from 'dayjs';
+import { Alert, Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from 'antd';
 import { useParams, useRouter } from 'next/navigation';
 import { useSnackbar } from 'notistack';
 import { useEffect, useState } from 'react';
@@ -46,6 +45,9 @@ export default function ItemsManagementPage() {
   const { mutateAsync: deleteItem } = Api.item.delete.useMutation();
   const { mutateAsync: createSale } = Api.sale.create.useMutation();
   const { mutateAsync: upload } = useUploadPublic();
+  const { data: customers } = Api.customer.findMany.useQuery({});
+  const { mutateAsync: createCustomer } = Api.customer.create.useMutation();
+  const { mutateAsync: updateCustomer } = Api.customer.update.useMutation();
 
   useEffect(() => {
     setItems(fetchedItems);
@@ -113,22 +115,79 @@ export default function ItemsManagementPage() {
         return;
       }
 
-      // ✅ Ensure we have enough stock
+      // Ensure we have enough stock
       if (fetchedItem.quantity < values.quantitySold) {
         enqueueSnackbar('Not enough stock available', { variant: 'error' });
         return;
       }
 
-      // ✅ Compute new quantity after selling
+      // Calculate profit
+      const profit = (values.sellPrice - fetchedItem.price) * values.quantitySold;
+
+      // Handle customer and loyalty points
+      let customerId = null;
+      let customerName = null;
+      let customerPhone = null;
+      let loyaltyPointsEarned = 0;
+
+      if (values.customerPhone) {
+        // Try to find existing customer
+        let customer = customers?.find(c => c.phoneNumber === values.customerPhone);
+
+        if (!customer && values.customerName) {
+          // Create new customer if not found
+          customer = await createCustomer({
+            data: {
+              name: values.customerName,
+              phoneNumber: values.customerPhone,
+              referredBy: values.referredByPhone ? 
+                customers?.find(c => c.phoneNumber === values.referredByPhone)?.id : 
+                undefined
+            }
+          });
+        }
+
+        if (customer) {
+          customerId = customer.id;
+          customerName = customer.name;
+          customerPhone = customer.phoneNumber;
+
+          // Calculate loyalty points (5% of profit)
+          loyaltyPointsEarned = profit * 0.05;
+
+          // Update customer's loyalty points
+          await updateCustomer({
+            where: { id: customer.id },
+            data: { 
+              loyaltyPoints: customer.loyaltyPoints + loyaltyPointsEarned
+            }
+          });
+
+          // If this customer was referred, give points to referrer
+          if (customer.referredBy) {
+            const referrer = customers?.find(c => c.id === customer.referredBy);
+            if (referrer) {
+              await updateCustomer({
+                where: { id: referrer.id },
+                data: {
+                  loyaltyPoints: referrer.loyaltyPoints + (loyaltyPointsEarned * 0.1) // Referrer gets 10% of the points
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // Compute new quantity after selling
       const newQuantity = fetchedItem.quantity - values.quantitySold;
 
-      // ✅ Update item stock using mutateAsync
+      // Update item stock
       await updateItem({
         where: { id: item.id },
         data: { quantity: newQuantity },
       });
 
-      // ✅ Create a sale record using mutateAsync
+      // Create sale record
       await createSale({
         data: {
           sellPrice: values.sellPrice,
@@ -142,7 +201,11 @@ export default function ItemsManagementPage() {
           userName: user?.name || '',
           itemCategory: item.category,
           itemPrice: item.price,
-          profit: (values.sellPrice - item.price) * values.quantitySold,
+          profit: profit,
+          customerId,
+          customerName,
+          customerPhone,
+          loyaltyPointsEarned
         },
       });
 
@@ -150,13 +213,14 @@ export default function ItemsManagementPage() {
       setIsSellModalVisible(false);
       sellForm.resetFields();
 
-      // ✅ Refetch items to update UI
+      // Refetch items to update UI
       refetch();
     } catch (error) {
       console.error('Error in handleSellItem:', error);
       enqueueSnackbar('Failed to sell item', { variant: 'error' });
     }
   };
+
   const handleFilterByBranch = (branchId: string) => {
     setSelectedBranch(branchId);
   };
@@ -507,8 +571,8 @@ const handleStockFilter = (value: string | null) => {
   title="Sell Item" 
   open={isSellModalVisible}
   onCancel={() => {
-    setIsSellModalVisible(false);
-    sellForm.resetFields();
+    setIsSellModalVisible(false)
+    sellForm.resetFields()
   }} 
   footer={null}
 >
@@ -529,6 +593,7 @@ const handleStockFilter = (value: string | null) => {
       showIcon
       style={{ marginBottom: 16 }}
     />
+    
     <Form.Item name="itemName" label="Item Name">
       <Input disabled />
     </Form.Item>
@@ -558,9 +623,9 @@ const handleStockFilter = (value: string | null) => {
         {
           validator: (_, value) => {
             if (value > currentItem?.quantity) {
-              return Promise.reject(`Maximum available quantity is ${currentItem?.quantity}`);
+              return Promise.reject(`Maximum available quantity is ${currentItem?.quantity}`)
             }
-            return Promise.resolve();
+            return Promise.resolve()
           }
         }
       ]}
@@ -580,11 +645,11 @@ const handleStockFilter = (value: string | null) => {
         { required: true, message: 'Please input the sell price!' },
         {
           validator: async (_, value) => {
-            if (!value) return Promise.reject('Please input the sell price!');
+            if (!value) return Promise.reject('Please input the sell price!')
             if (value < currentItem?.minimumSellPrice) {
-              return Promise.reject(`Cannot sell below minimum price of KES ${currentItem?.minimumSellPrice}`);
+              return Promise.reject(`Cannot sell below minimum price of KES ${currentItem?.minimumSellPrice}`)
             }
-            return Promise.resolve();
+            return Promise.resolve()
           },
         }
       ]}
@@ -596,13 +661,43 @@ const handleStockFilter = (value: string | null) => {
         placeholder={`Minimum sell price: KES ${currentItem?.minimumSellPrice}`}
       />
     </Form.Item>
+
+    <Form.Item
+      name="customerPhone"
+      label="Customer Phone"
+      rules={[
+        { pattern: /^[0-9+\-\s]+$/, message: 'Please enter a valid phone number!' }
+      ]}
+    >
+      <Input placeholder="Enter customer phone number" />
+    </Form.Item>
+
+    <Form.Item
+      name="customerName"
+      label="Customer Name"
+      rules={[
+        { required: false }
+      ]}
+    >
+      <Input placeholder="Enter customer name" />
+    </Form.Item>
+
+    <Form.Item
+      name="referredByPhone"
+      label="Referred By (Phone)"
+      rules={[
+        { pattern: /^[0-9+\-\s]+$/, message: 'Please enter a valid phone number!' }
+      ]}
+    >
+      <Input placeholder="Enter referrer's phone number" />
+    </Form.Item>
     
     <Form.Item>
       <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
         <Button 
           onClick={() => {
-            setIsSellModalVisible(false);
-            sellForm.resetFields();
+            setIsSellModalVisible(false)
+            sellForm.resetFields()
           }}
         >
           Cancel

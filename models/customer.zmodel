@@ -1,0 +1,18 @@
+import "./sale.zmodel" 
+
+model Customer {
+    id String @id @default(cuid())
+    name String
+    phoneNumber String @unique
+    loyaltyPoints Float @default(0)
+    referredBy String? // ID of the customer who referred this customer
+    referrer Customer? @relation("ReferralRelation", fields: [referredBy], references: [id])
+    referrals Customer[] @relation("ReferralRelation")
+    sales Sale[] 
+    dateCreated DateTime @default(now())
+    dateUpdated DateTime @updatedAt @default(now())
+
+    // Allow admins to manage customers
+    @@allow('all', auth() == null || auth().roles?[name == 'admin'])
+    @@allow('read', true)
+}
