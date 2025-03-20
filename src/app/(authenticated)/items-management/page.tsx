@@ -37,6 +37,7 @@ export default function ItemsManagementPage() {
   const [currentItem, setCurrentItem] = useState<any>(null);
   const [stockFilter, setStockFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isNewCustomer, setIsNewCustomer] = useState(false);
 
   const { data: branches } = Api.branch.findMany.useQuery({});
   const { data: fetchedItems, refetch } = Api.item.findMany.useQuery({ include: { branch: true } });
@@ -152,7 +153,7 @@ export default function ItemsManagementPage() {
           customerName = customer.name;
           customerPhone = customer.phoneNumber;
 
-          // Calculate loyalty points (5% of profit)
+          // Calculate loyalty points (5% of profit for customer)
           loyaltyPointsEarned = profit * 0.05;
 
           // Update customer's loyalty points
@@ -163,14 +164,15 @@ export default function ItemsManagementPage() {
             }
           });
 
-          // If this customer was referred, give points to referrer
+          // If this customer was referred, give points to referrer (2% of profit)
           if (customer.referredBy) {
             const referrer = customers?.find(c => c.id === customer.referredBy);
             if (referrer) {
+              const referrerPoints = profit * 0.02; // 2% of profit for referrer
               await updateCustomer({
                 where: { id: referrer.id },
                 data: {
-                  loyaltyPoints: referrer.loyaltyPoints + (loyaltyPointsEarned * 0.1) // Referrer gets 10% of the points
+                  loyaltyPoints: referrer.loyaltyPoints + referrerPoints
                 }
               });
             }
@@ -383,6 +385,29 @@ const handleStockFilter = (value: string | null) => {
     },
   ];
 
+  // Add this function to handle customer phone number changes
+  const handleCustomerPhoneChange = (phoneNumber: string) => {
+    if (!phoneNumber) {
+      sellForm.setFieldsValue({ customerName: '' });
+      setIsNewCustomer(false);
+      return;
+    }
+
+    const existingCustomer = customers?.find(c => c.phoneNumber === phoneNumber);
+    if (existingCustomer) {
+      sellForm.setFieldsValue({ 
+        customerName: existingCustomer.name,
+        referredByPhone: existingCustomer.referredBy ? 
+          customers?.find(c => c.id === existingCustomer.referredBy)?.phoneNumber : 
+          undefined
+      });
+      setIsNewCustomer(false);
+    } else {
+      sellForm.setFieldsValue({ customerName: '' });
+      setIsNewCustomer(true);
+    }
+  };
+
   return (
     <PageLayout layout="full-width">
       <Title level={2}>Items Management</Title>
@@ -573,6 +598,7 @@ const handleStockFilter = (value: string | null) => {
   onCancel={() => {
     setIsSellModalVisible(false)
     sellForm.resetFields()
+    setIsNewCustomer(false)
   }} 
   footer={null}
 >
@@ -666,20 +692,27 @@ const handleStockFilter = (value: string | null) => {
       name="customerPhone"
       label="Customer Phone"
       rules={[
+        { required: true, message: 'Please enter customer phone number!' },
         { pattern: /^[0-9+\-\s]+$/, message: 'Please enter a valid phone number!' }
       ]}
     >
-      <Input placeholder="Enter customer phone number" />
+      <Input 
+        placeholder="Enter customer phone number"
+        onChange={(e) => handleCustomerPhoneChange(e.target.value)}
+      />
     </Form.Item>
 
     <Form.Item
       name="customerName"
       label="Customer Name"
       rules={[
-        { required: false }
+        { required: true, message: 'Please enter customer name!' }
       ]}
     >
-      <Input placeholder="Enter customer name" />
+      <Input 
+        placeholder="Enter customer name"
+        disabled={!isNewCustomer}
+      />
     </Form.Item>
 
     <Form.Item
@@ -689,7 +722,10 @@ const handleStockFilter = (value: string | null) => {
         { pattern: /^[0-9+\-\s]+$/, message: 'Please enter a valid phone number!' }
       ]}
     >
-      <Input placeholder="Enter referrer's phone number" />
+      <Input 
+        placeholder="Enter referrer's phone number"
+        disabled={!isNewCustomer}
+      />
     </Form.Item>
     
     <Form.Item>
@@ -698,6 +734,7 @@ const handleStockFilter = (value: string | null) => {
           onClick={() => {
             setIsSellModalVisible(false)
             sellForm.resetFields()
+            setIsNewCustomer(false)
           }}
         >
           Cancel

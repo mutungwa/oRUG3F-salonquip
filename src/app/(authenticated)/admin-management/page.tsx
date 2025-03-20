@@ -5,23 +5,23 @@ import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
 import { DeleteOutlined, DollarOutlined, DownloadOutlined, EditOutlined, GiftOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons'
 import {
-    Alert,
-    Button,
-    Card,
-    Col,
-    DatePicker,
-    Form,
-    Input,
-    InputNumber,
-    Modal,
-    Row,
-    Select,
-    Space,
-    Statistic,
-    Table,
-    Tabs,
-    Tag,
-    Typography,
+  Alert,
+  Button,
+  Card,
+  Col,
+  DatePicker,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Row,
+  Select,
+  Space,
+  Statistic,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
 } from 'antd'
 import dayjs from 'dayjs'
 import { useParams, useRouter } from 'next/navigation'
@@ -44,6 +44,9 @@ export default function AdminManagementPage() {
   const [activeTab, setActiveTab] = useState('users') // 'users' or 'sales'
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
+  const [editPointsForm] = Form.useForm();
+  const [isEditPointsModalVisible, setIsEditPointsModalVisible] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
 
   const {
     data: users,
@@ -332,14 +335,16 @@ export default function AdminManagementPage() {
     document.body.removeChild(link);
   };
 
-  const handleUpdateLoyaltyPoints = async (customerId: string, points: number) => {
+  const handleUpdateLoyaltyPoints = async (values: any) => {
     try {
       await updateCustomer({
-        where: { id: customerId },
-        data: { loyaltyPoints: points }
+        where: { id: selectedCustomer.id },
+        data: { loyaltyPoints: values.loyaltyPoints }
       })
       enqueueSnackbar('Loyalty points updated successfully', { variant: 'success' })
       refetchCustomers()
+      setIsEditPointsModalVisible(false)
+      editPointsForm.resetFields()
     } catch (error) {
       enqueueSnackbar('Failed to update loyalty points', { variant: 'error' })
     }
@@ -520,7 +525,14 @@ export default function AdminManagementPage() {
                   <Row gutter={[16, 16]} style={{ marginTop: '20px' }}>
                     <Col span={24}>
                       <Card>
-                        <Title level={4}>Customer Loyalty Points</Title>
+                        <Title level={4}>Customer Loyalty Program</Title>
+                        <Alert
+                          message="Loyalty Program Rules"
+                          description="Customers earn 5% of profit as loyalty points. Referrers earn 2% of profit when their referrals make purchases."
+                          type="info"
+                          showIcon
+                          style={{ marginBottom: '20px' }}
+                        />
                         <Table
                           dataSource={customers}
                           columns={[
@@ -538,7 +550,7 @@ export default function AdminManagementPage() {
                               title: 'Loyalty Points',
                               dataIndex: 'loyaltyPoints',
                               key: 'loyaltyPoints',
-                              render: (points: number) => points.toFixed(2),
+                              render: (points: number) => `KES ${points.toFixed(2)}`,
                             },
                             {
                               title: 'Referred By',
@@ -556,18 +568,32 @@ export default function AdminManagementPage() {
                               }
                             },
                             {
+                              title: 'Total Points Earned',
+                              key: 'totalPoints',
+                              render: (_, record) => {
+                                const sales = salesData?.filter(s => s.customerId === record.id) || [];
+                                const pointsEarned = sales.reduce((sum, sale) => sum + sale.loyaltyPointsEarned, 0);
+                                return `KES ${pointsEarned.toFixed(2)}`;
+                              }
+                            },
+                            {
                               title: 'Actions',
                               key: 'actions',
                               render: (_, record) => (
                                 <Space>
-                                  <InputNumber
-                                    defaultValue={record.loyaltyPoints}
-                                    onChange={(value) => {
-                                      if (value !== null) {
-                                        handleUpdateLoyaltyPoints(record.id, value)
-                                      }
+                                  <Button
+                                    type="primary"
+                                    icon={<EditOutlined />}
+                                    onClick={() => {
+                                      setSelectedCustomer(record);
+                                      editPointsForm.setFieldsValue({
+                                        loyaltyPoints: record.loyaltyPoints
+                                      });
+                                      setIsEditPointsModalVisible(true);
                                     }}
-                                  />
+                                  >
+                                    Edit Points
+                                  </Button>
                                 </Space>
                               ),
                             },
@@ -577,6 +603,48 @@ export default function AdminManagementPage() {
                       </Card>
                     </Col>
                   </Row>
+
+                  <Modal
+                    title="Edit Loyalty Points"
+                    open={isEditPointsModalVisible}
+                    onCancel={() => {
+                      setIsEditPointsModalVisible(false);
+                      editPointsForm.resetFields();
+                    }}
+                    footer={null}
+                  >
+                    <Form
+                      form={editPointsForm}
+                      onFinish={handleUpdateLoyaltyPoints}
+                      layout="vertical"
+                    >
+                      <Form.Item
+                        name="loyaltyPoints"
+                        label="Loyalty Points"
+                        rules={[{ required: true, message: 'Please input the loyalty points!' }]}
+                      >
+                        <InputNumber
+                          style={{ width: '100%' }}
+                          formatter={value => `KES ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                          parser={value => value!.replace(/KES\s?|(,*)/g, '')}
+                          placeholder="Enter loyalty points"
+                        />
+                      </Form.Item>
+                      <Form.Item>
+                        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+                          <Button onClick={() => {
+                            setIsEditPointsModalVisible(false);
+                            editPointsForm.resetFields();
+                          }}>
+                            Cancel
+                          </Button>
+                          <Button type="primary" htmlType="submit">
+                            Update Points
+                          </Button>
+                        </Space>
+                      </Form.Item>
+                    </Form>
+                  </Modal>
                 </>
               ),
             }
