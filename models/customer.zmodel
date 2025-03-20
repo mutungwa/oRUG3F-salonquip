@@ -12,7 +12,9 @@ model Customer {
     dateCreated DateTime @default(now())
     dateUpdated DateTime @updatedAt @default(now())
 
-    // Allow admins to manage customers
+    // Allow all users to manage customers
     @@allow('all', auth() == null || auth().roles?[name == 'admin'])
+    @@allow('create', true) // Allow all users to create customers
     @@allow('read', true)
+    @@allow('update', true)
 }

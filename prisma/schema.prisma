@@ -85,6 +85,8 @@ model Admin {
 
 /// @@allow('all', auth() == null || auth().roles?[name == 'admin'])
 /// @@allow('read', true)
+/// @@allow('create', true)
+/// @@allow('update', true)
 model Sale {
   id                  String    @id() @default(cuid())
   sellPrice           Float
@@ -166,7 +168,9 @@ model StockTransfer {
 }
 
 /// @@allow('all', auth() == null || auth().roles?[name == 'admin'])
+/// @@allow('create', true)
 /// @@allow('read', true)
+/// @@allow('update', true)
 model Customer {
   id            String     @id() @default(cuid())
   name          String
