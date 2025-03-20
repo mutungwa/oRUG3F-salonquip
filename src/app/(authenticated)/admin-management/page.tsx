@@ -70,6 +70,9 @@ export default function AdminManagementPage() {
       sellPrice: true,
       profit: true,
       userId: true,
+      customerId: true,
+      loyaltyPointsEarned: true,
+      
     }
   }, {
     onSuccess: (data) => {
