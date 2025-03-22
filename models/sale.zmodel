@@ -25,11 +25,11 @@ model Sale {
     customerPhone String?
     profit        Float
     loyaltyPointsEarned Float @default(0)
+    loyaltyPointsRedeemed Float @default(0) // Add this field
     dateCreated   DateTime @default(now())
     dateUpdated   DateTime @updatedAt
     @@allow('all', auth() == null || auth().roles?[name == 'admin'])
     @@allow('read', true)
-     @@allow('create', true)
-     @@allow('update', true)
-
+    @@allow('create', true)
+    @@allow('update', true)
 }

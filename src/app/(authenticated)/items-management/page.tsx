@@ -38,6 +38,7 @@ export default function ItemsManagementPage() {
   const [stockFilter, setStockFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [currentCustomer, setCurrentCustomer] = useState<any>(null);
 
   const { data: branches } = Api.branch.findMany.useQuery({});
   const { data: fetchedItems, refetch } = Api.item.findMany.useQuery({ include: { branch: true } });
@@ -102,126 +103,135 @@ export default function ItemsManagementPage() {
 
   const handleSellItem = async (item: Prisma.ItemGetPayload<{ include: { branch: true } }>, values: any) => {
     try {
-      // Find the item in the already fetched data
-      const fetchedItem = fetchedItems?.find(i => i.id === item.id);
+        // Find the item in the already fetched data
+        const fetchedItem = fetchedItems?.find(i => i.id === item.id);
 
-      if (!fetchedItem) {
-        enqueueSnackbar('Item not found', { variant: 'error' });
-        return;
-      }
-
-      // Check if sell price is below minimum sell price
-      if (values.sellPrice < fetchedItem.minimumSellPrice) {
-        enqueueSnackbar(`Cannot sell below minimum price of KES ${fetchedItem.minimumSellPrice}`, { variant: 'error' });
-        return;
-      }
-
-      // Ensure we have enough stock
-      if (fetchedItem.quantity < values.quantitySold) {
-        enqueueSnackbar('Not enough stock available', { variant: 'error' });
-        return;
-      }
-
-      // Calculate profit
-      const profit = (values.sellPrice - fetchedItem.price) * values.quantitySold;
-
-      // Handle customer and loyalty points
-      let customerId = null;
-      let customerName = null;
-      let customerPhone = null;
-      let loyaltyPointsEarned = 0;
-
-      if (values.customerPhone) {
-        // Try to find existing customer
-        let customer = customers?.find(c => c.phoneNumber === values.customerPhone);
-
-        if (!customer && values.customerName) {
-          // Create new customer if not found
-          customer = await createCustomer({
-            data: {
-              name: values.customerName,
-              phoneNumber: values.customerPhone,
-              referredBy: values.referredByPhone ? 
-                customers?.find(c => c.phoneNumber === values.referredByPhone)?.id : 
-                undefined
-            }
-          });
+        if (!fetchedItem) {
+            enqueueSnackbar('Item not found', { variant: 'error' });
+            return;
         }
 
-        if (customer) {
-          customerId = customer.id;
-          customerName = customer.name;
-          customerPhone = customer.phoneNumber;
+        // Check if sell price is below minimum sell price
+        if (values.sellPrice < fetchedItem.minimumSellPrice) {
+            enqueueSnackbar(`Cannot sell below minimum price of KES ${fetchedItem.minimumSellPrice}`, { variant: 'error' });
+            return;
+        }
 
-          // Calculate loyalty points (5% of profit for customer)
-          loyaltyPointsEarned = profit * 0.05;
+        // Ensure we have enough stock
+        if (fetchedItem.quantity < values.quantitySold) {
+            enqueueSnackbar('Not enough stock available', { variant: 'error' });
+            return;
+        }
 
-          // Update customer's loyalty points
-          await updateCustomer({
-            where: { id: customer.id },
-            data: { 
-              loyaltyPoints: customer.loyaltyPoints + loyaltyPointsEarned
+        // Calculate profit
+        const profit = (values.sellPrice - fetchedItem.price) * values.quantitySold;
+
+        // Handle customer and loyalty points
+        let customerId = null;
+        let customerName = null;
+        let customerPhone = null;
+        let loyaltyPointsEarned = 0;
+        let loyaltyPointsRedeemed = values.redeemPoints || 0;
+
+        if (values.customerPhone) {
+            // Try to find existing customer
+            let customer = customers?.find(c => c.phoneNumber === values.customerPhone);
+
+            if (!customer && values.customerName) {
+                // Create new customer if not found
+                customer = await createCustomer({
+                    data: {
+                        name: values.customerName,
+                        phoneNumber: values.customerPhone,
+                        referredBy: values.referredByPhone ? 
+                            customers?.find(c => c.phoneNumber === values.referredByPhone)?.id : 
+                            undefined
+                    }
+                });
             }
-          });
 
-          // If this customer was referred, give points to referrer (2% of profit)
-          if (customer.referredBy) {
-            const referrer = customers?.find(c => c.id === customer.referredBy);
-            if (referrer) {
-              const referrerPoints = profit * 0.02; // 2% of profit for referrer
-              await updateCustomer({
-                where: { id: referrer.id },
-                data: {
-                  loyaltyPoints: referrer.loyaltyPoints + referrerPoints
+            if (customer) {
+                customerId = customer.id;
+                customerName = customer.name;
+                customerPhone = customer.phoneNumber;
+
+                // Validate redeem points
+                if (loyaltyPointsRedeemed > customer.loyaltyPoints) {
+                    enqueueSnackbar('Cannot redeem more points than available', { variant: 'error' });
+                    return;
                 }
-              });
+
+                // Calculate loyalty points (5% of profit for customer)
+                loyaltyPointsEarned = profit * 0.05;
+
+                // Update customer's loyalty points
+                await updateCustomer({
+                    where: { id: customer.id },
+                    data: { 
+                        loyaltyPoints: customer.loyaltyPoints - loyaltyPointsRedeemed + loyaltyPointsEarned
+                    }
+                });
+
+                // If this customer was referred, give points to referrer (2% of profit)
+                if (customer.referredBy) {
+                    const referrer = customers?.find(c => c.id === customer.referredBy);
+                    if (referrer) {
+                        const referrerPoints = profit * 0.02; // 2% of profit for referrer
+                        await updateCustomer({
+                            where: { id: referrer.id },
+                            data: {
+                                loyaltyPoints: referrer.loyaltyPoints + referrerPoints
+                            }
+                        });
+                    }
+                }
             }
-          }
         }
-      }
 
-      // Compute new quantity after selling
-      const newQuantity = fetchedItem.quantity - values.quantitySold;
+        // Compute new quantity after selling
+        const newQuantity = fetchedItem.quantity - values.quantitySold;
 
-      // Update item stock
-      await updateItem({
-        where: { id: item.id },
-        data: { quantity: newQuantity },
-      });
+        // Update item stock
+        await updateItem({
+            where: { id: item.id },
+            data: { quantity: newQuantity },
+        });
 
-      // Create sale record
-      await createSale({
-        data: {
-          sellPrice: values.sellPrice,
-          quantitySold: values.quantitySold,
-          saleDate: new Date().toISOString(),
-          itemId: item.id,
-          branchId: item.branchId,
-          userId: user?.id || '',
-          itemName: item.name,
-          branchName: item.branch?.name || '',
-          userName: user?.name || '',
-          itemCategory: item.category,
-          itemPrice: item.price,
-          profit: profit,
-          customerId,
-          customerName,
-          customerPhone,
-          loyaltyPointsEarned
-        },
-      });
+        // Create sale record
+        await createSale({
+            data: {
+                sellPrice: values.sellPrice,
+                quantitySold: values.quantitySold,
+                saleDate: new Date().toISOString(),
+                itemId: item.id,
+                branchId: item.branchId,
+                userId: user?.id || '',
+                itemName: item.name,
+                branchName: item.branch?.name || '',
+                userName: user?.name || '',
+                itemCategory: item.category,
+                itemPrice: item.price,
+                profit: profit,
+                customerId,
+                customerName,
+                customerPhone,
+                loyaltyPointsEarned,
+                loyaltyPointsRedeemed // Add this field
+            },
+        });
 
-      enqueueSnackbar('Item sold successfully', { variant: 'success' });
-      setIsSellModalVisible(false);
-      sellForm.resetFields();
+        enqueueSnackbar('Item sold successfully', { variant: 'success' });
+        setIsSellModalVisible(false);
+        sellForm.resetFields();
+        setCurrentCustomer(null);
 
-      // Refetch items to update UI
-      refetch();
+        // Refetch items to update UI
+        refetch();
     } catch (error) {
-      console.error('Error in handleSellItem:', error);
-      enqueueSnackbar('Failed to sell item', { variant: 'error' });
+        console.error('Error in handleSellItem:', error);
+        enqueueSnackbar('Failed to sell item', { variant: 'error' });
     }
-  };
+};
 
   const handleFilterByBranch = (branchId: string) => {
     setSelectedBranch(branchId);
@@ -387,26 +397,30 @@ const handleStockFilter = (value: string | null) => {
 
   // Add this function to handle customer phone number changes
   const handleCustomerPhoneChange = (phoneNumber: string) => {
-    if (!phoneNumber) {
-      sellForm.setFieldsValue({ customerName: '' });
-      setIsNewCustomer(false);
-      return;
-    }
+  if (!phoneNumber) {
+    sellForm.setFieldsValue({ customerName: '', redeemPoints: 0 });
+    setIsNewCustomer(false);
+    setCurrentCustomer(null);
+    return;
+  }
 
-    const existingCustomer = customers?.find(c => c.phoneNumber === phoneNumber);
-    if (existingCustomer) {
-      sellForm.setFieldsValue({ 
-        customerName: existingCustomer.name,
-        referredByPhone: existingCustomer.referredBy ? 
-          customers?.find(c => c.id === existingCustomer.referredBy)?.phoneNumber : 
-          undefined
-      });
-      setIsNewCustomer(false);
-    } else {
-      sellForm.setFieldsValue({ customerName: '' });
-      setIsNewCustomer(true);
-    }
-  };
+  const existingCustomer = customers?.find(c => c.phoneNumber === phoneNumber);
+  if (existingCustomer) {
+    sellForm.setFieldsValue({ 
+      customerName: existingCustomer.name,
+      referredByPhone: existingCustomer.referredBy ? 
+        customers?.find(c => c.id === existingCustomer.referredBy)?.phoneNumber : 
+        undefined,
+      redeemPoints: 0 // Reset redeem points when customer changes
+    });
+    setCurrentCustomer(existingCustomer); // Set the current customer
+    setIsNewCustomer(false);
+  } else {
+    sellForm.setFieldsValue({ customerName: '', redeemPoints: 0 });
+    setCurrentCustomer(null);
+    setIsNewCustomer(true);
+  }
+};
 
   return (
     <PageLayout layout="full-width">
@@ -599,6 +613,7 @@ const handleStockFilter = (value: string | null) => {
     setIsSellModalVisible(false)
     sellForm.resetFields()
     setIsNewCustomer(false)
+    setCurrentCustomer(null)
   }} 
   footer={null}
 >
@@ -613,6 +628,57 @@ const handleStockFilter = (value: string | null) => {
       price: currentItem?.price,
     }}
   >
+    {/* Customer Details Section */}
+    <Form.Item
+      name="customerPhone"
+      label="Customer Phone"
+      rules={[
+        { required: true, message: 'Please enter customer phone number!' },
+        { pattern: /^[0-9+\-\s]+$/, message: 'Please enter a valid phone number!' }
+      ]}
+    >
+      <Input 
+        placeholder="Enter customer phone number"
+        onChange={(e) => handleCustomerPhoneChange(e.target.value)}
+      />
+    </Form.Item>
+
+    <Form.Item
+      name="customerName"
+      label="Customer Name"
+      rules={[
+        { required: true, message: 'Please enter customer name!' }
+      ]}
+    >
+      <Input 
+        placeholder="Enter customer name"
+        disabled={!isNewCustomer}
+      />
+    </Form.Item>
+
+    <Form.Item
+      name="referredByPhone"
+      label="Referred By (Phone)"
+      rules={[
+        { pattern: /^[0-9+\-\s]+$/, message: 'Please enter a valid phone number!' }
+      ]}
+    >
+      <Input 
+        placeholder="Enter referrer's phone number"
+        disabled={!isNewCustomer}
+      />
+    </Form.Item>
+
+    {currentCustomer && (
+      <Alert
+        message={`Available loyalty points: KES ${currentCustomer.loyaltyPoints.toFixed(2)}`}
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+      />
+    )}
+
+    {/* Item Details Section */}
     <Alert
       message={`Minimum sell price: KES ${currentItem?.minimumSellPrice || 0}`}
       type="info"
@@ -688,46 +754,37 @@ const handleStockFilter = (value: string | null) => {
       />
     </Form.Item>
 
+    {/* Redeem Points Section */}
     <Form.Item
-      name="customerPhone"
-      label="Customer Phone"
+      name="redeemPoints"
+      label="Redeem Loyalty Points"
       rules={[
-        { required: true, message: 'Please enter customer phone number!' },
-        { pattern: /^[0-9+\-\s]+$/, message: 'Please enter a valid phone number!' }
+        {
+          validator: (_, value) => {
+            if (!currentCustomer) {
+              return Promise.reject('No customer selected to redeem points');
+            }
+            if (value && value > currentCustomer.loyaltyPoints) {
+              return Promise.reject('Cannot redeem more points than available');
+            }
+            return Promise.resolve();
+          }
+        }
       ]}
     >
-      <Input 
-        placeholder="Enter customer phone number"
-        onChange={(e) => handleCustomerPhoneChange(e.target.value)}
-      />
-    </Form.Item>
-
-    <Form.Item
-      name="customerName"
-      label="Customer Name"
-      rules={[
-        { required: true, message: 'Please enter customer name!' }
-      ]}
-    >
-      <Input 
-        placeholder="Enter customer name"
-        disabled={!isNewCustomer}
-      />
-    </Form.Item>
-
-    <Form.Item
-      name="referredByPhone"
-      label="Referred By (Phone)"
-      rules={[
-        { pattern: /^[0-9+\-\s]+$/, message: 'Please enter a valid phone number!' }
-      ]}
-    >
-      <Input 
-        placeholder="Enter referrer's phone number"
-        disabled={!isNewCustomer}
+      <InputNumber
+        min={0}
+        max={currentCustomer?.loyaltyPoints}
+        style={{ width: '100%' }}
+        placeholder={`Available points: ${currentCustomer?.loyaltyPoints || 0}`}
+        onChange={(value) => {
+          // Trigger validation as the user types
+          sellForm.validateFields(['redeemPoints']);
+        }}
       />
     </Form.Item>
     
+    {/* Actions Section */}
     <Form.Item>
       <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
         <Button 
@@ -735,6 +792,7 @@ const handleStockFilter = (value: string | null) => {
             setIsSellModalVisible(false)
             sellForm.resetFields()
             setIsNewCustomer(false)
+            setCurrentCustomer(null)
           }}
         >
           Cancel

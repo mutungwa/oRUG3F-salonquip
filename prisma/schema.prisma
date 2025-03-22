@@ -88,29 +88,30 @@ model Admin {
 /// @@allow('create', true)
 /// @@allow('update', true)
 model Sale {
-  id                  String    @id() @default(cuid())
-  sellPrice           Float
-  quantitySold        Int
-  saleDate            DateTime  @default(now())
-  itemId              String
-  item                Item      @relation(fields: [itemId], references: [id], name: "item")
-  itemName            String
-  itemCategory        String
-  itemPrice           Float
-  branchId            String
-  branch              Branch    @relation(fields: [branchId], references: [id], name: "branch")
-  branchName          String
-  userId              String
-  user                User      @relation(fields: [userId], references: [id], name: "user")
-  userName            String
-  customerId          String?
-  customer            Customer? @relation(fields: [customerId], references: [id])
-  customerName        String?
-  customerPhone       String?
-  profit              Float
-  loyaltyPointsEarned Float     @default(0)
-  dateCreated         DateTime  @default(now())
-  dateUpdated         DateTime  @updatedAt()
+  id                    String    @id() @default(cuid())
+  sellPrice             Float
+  quantitySold          Int
+  saleDate              DateTime  @default(now())
+  itemId                String
+  item                  Item      @relation(fields: [itemId], references: [id], name: "item")
+  itemName              String
+  itemCategory          String
+  itemPrice             Float
+  branchId              String
+  branch                Branch    @relation(fields: [branchId], references: [id], name: "branch")
+  branchName            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], name: "user")
+  userName              String
+  customerId            String?
+  customer              Customer? @relation(fields: [customerId], references: [id])
+  customerName          String?
+  customerPhone         String?
+  profit                Float
+  loyaltyPointsEarned   Float     @default(0)
+  loyaltyPointsRedeemed Float     @default(0)
+  dateCreated           DateTime  @default(now())
+  dateUpdated           DateTime  @updatedAt()
 }
 
 /// @@allow('read', true)
