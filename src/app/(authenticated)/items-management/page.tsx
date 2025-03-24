@@ -4,16 +4,14 @@ import { useUserContext } from '@/core/context';
 import { useUploadPublic } from '@/core/hooks/upload';
 import { Api } from '@/core/trpc';
 import { PageLayout } from '@/designSystem/layouts/Page.layout';
-import { DeleteOutlined, DollarOutlined, EditOutlined, PlusOutlined, SearchOutlined, FileTextOutlined, DownloadOutlined, PrinterOutlined } from '@ant-design/icons';
-import { Prisma } from '@prisma/client';
-import { Alert, Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, DatePicker, Tabs, Checkbox, Card } from 'antd';
+import { DeleteOutlined, DollarOutlined, DownloadOutlined, EditOutlined, FileTextOutlined, PlusOutlined, PrinterOutlined, SearchOutlined } from '@ant-design/icons';
+import { Alert, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
+import dayjs from 'dayjs';
+import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
 import { useSnackbar } from 'notistack';
-import { useEffect, useState, useRef } from 'react';
-import dayjs from 'dayjs';
+import { useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { useReactToPrint } from 'react-to-print';
-import { Document, Page, Text as PDFText, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -23,131 +21,171 @@ const styles = {
   }
 };
 
-// Add receipt styles
-const receiptStyles = StyleSheet.create({
-  page: {
-    padding: 20,
-    fontSize: 10,
-    width: '80mm',
-  },
-  header: {
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  title: {
-    fontSize: 14,
-    marginBottom: 5,
-  },
-  subtitle: {
-    fontSize: 12,
-    marginBottom: 5,
-  },
-  divider: {
-    borderBottom: 1,
-    marginVertical: 5,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 2,
-  },
-  footer: {
-    marginTop: 20,
-    textAlign: 'center',
-  },
-  text: {
-    fontSize: 10,
-  },
-  bold: {
-    fontWeight: 'bold',
-  },
-});
-
-// Add Receipt component
-const Receipt = ({ sale, customer, item }) => {
-  return (
-    <Document>
-      <Page size="A4" style={receiptStyles.page}>
-        <View style={receiptStyles.header}>
-          <PDFText style={receiptStyles.title}>SALON QUIP</PDFText>
-          <PDFText style={receiptStyles.subtitle}>Sales Receipt</PDFText>
-        </View>
-        
-        <View style={receiptStyles.divider} />
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Date:</PDFText>
-          <PDFText style={receiptStyles.text}>{dayjs(sale.saleDate).format('YYYY-MM-DD HH:mm')}</PDFText>
-        </View>
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Receipt #:</PDFText>
-          <PDFText style={receiptStyles.text}>{sale.id}</PDFText>
-        </View>
-        
-        <View style={receiptStyles.divider} />
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Customer:</PDFText>
-          <PDFText style={receiptStyles.text}>{customer?.name || 'Walk-in Customer'}</PDFText>
-        </View>
-        
-        {customer?.phoneNumber && (
-          <View style={receiptStyles.row}>
-            <PDFText style={receiptStyles.text}>Phone:</PDFText>
-            <PDFText style={receiptStyles.text}>{customer.phoneNumber}</PDFText>
-          </View>
-        )}
-        
-        <View style={receiptStyles.divider} />
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Item:</PDFText>
-          <PDFText style={receiptStyles.text}>{item.name}</PDFText>
-        </View>
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Quantity:</PDFText>
-          <PDFText style={receiptStyles.text}>{sale.quantitySold}</PDFText>
-        </View>
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Unit Price:</PDFText>
-          <PDFText style={receiptStyles.text}>KES {sale.sellPrice.toLocaleString()}</PDFText>
-        </View>
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.bold}>Total Amount:</PDFText>
-          <PDFText style={receiptStyles.bold}>KES {(sale.sellPrice * sale.quantitySold).toLocaleString()}</PDFText>
-        </View>
-        
-        {customer && (
-          <>
-            <View style={receiptStyles.divider} />
-            <View style={receiptStyles.row}>
-              <PDFText style={receiptStyles.text}>Points Earned:</PDFText>
-              <PDFText style={receiptStyles.text}>KES {sale.loyaltyPointsEarned.toFixed(2)}</PDFText>
-            </View>
-            <View style={receiptStyles.row}>
-              <PDFText style={receiptStyles.text}>Points Redeemed:</PDFText>
-              <PDFText style={receiptStyles.text}>KES {sale.loyaltyPointsRedeemed.toFixed(2)}</PDFText>
-            </View>
-            <View style={receiptStyles.row}>
-              <PDFText style={receiptStyles.bold}>Remaining Points:</PDFText>
-              <PDFText style={receiptStyles.bold}>KES {(customer.loyaltyPoints).toFixed(2)}</PDFText>
-            </View>
-          </>
-        )}
-        
-        <View style={receiptStyles.divider} />
-        
-        <View style={receiptStyles.footer}>
-          <PDFText style={receiptStyles.text}>Thank you for your business!</PDFText>
-        </View>
-      </Page>
-    </Document>
-  );
+// Define the Item type with branch
+type ItemWithBranch = {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  price: number;
+  sku: string;
+  quantity: number;
+  origin: string;
+  imageUrl: string | null;
+  branchId: string;
+  deleted: boolean;
+  minimumStockLevel: number;
+  minimumSellPrice: number;
+  dateCreated: Date;
+  dateUpdated: Date;
+  branch: {
+    id: string;
+    name: string;
+    location: string;
+    phoneNumber: string;
+    dateCreated: Date;
+    dateUpdated: Date;
+  };
 };
+
+interface ReceiptProps {
+  sale: any;
+  customer: any;
+  item: any;
+}
+
+// Dynamically import the PDF components with no SSR
+const PDFReceipt = dynamic(() => import('@react-pdf/renderer').then(mod => {
+  const { Document, Page, Text, View, StyleSheet } = mod;
+  
+  const styles = StyleSheet.create({
+    page: {
+      padding: 20,
+      fontSize: 10,
+      width: '80mm',
+    },
+    header: {
+      marginBottom: 10,
+      textAlign: 'center',
+    },
+    title: {
+      fontSize: 14,
+      marginBottom: 5,
+    },
+    subtitle: {
+      fontSize: 12,
+      marginBottom: 5,
+    },
+    divider: {
+      borderBottom: 1,
+      marginVertical: 5,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginVertical: 2,
+    },
+    footer: {
+      marginTop: 20,
+      textAlign: 'center',
+    },
+    text: {
+      fontSize: 10,
+    },
+    bold: {
+      fontWeight: 'bold',
+    },
+  });
+
+  const PDFReceiptComponent = ({ sale, customer, item }: ReceiptProps) => {
+    return (
+      <Document>
+        <Page size="A4" style={styles.page}>
+          <View style={styles.header}>
+            <Text style={styles.title}>SALON QUIP</Text>
+            <Text style={styles.subtitle}>Sales Receipt</Text>
+          </View>
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Date:</Text>
+            <Text style={styles.text}>{dayjs(sale.saleDate).format('YYYY-MM-DD HH:mm')}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Receipt #:</Text>
+            <Text style={styles.text}>{sale.id}</Text>
+          </View>
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Customer:</Text>
+            <Text style={styles.text}>{customer?.name || 'Walk-in Customer'}</Text>
+          </View>
+          
+          {customer?.phoneNumber && (
+            <View style={styles.row}>
+              <Text style={styles.text}>Phone:</Text>
+              <Text style={styles.text}>{customer.phoneNumber}</Text>
+            </View>
+          )}
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Item:</Text>
+            <Text style={styles.text}>{item.name}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Quantity:</Text>
+            <Text style={styles.text}>{sale.quantitySold}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Unit Price:</Text>
+            <Text style={styles.text}>KES {sale.sellPrice.toLocaleString()}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.bold}>Total Amount:</Text>
+            <Text style={styles.bold}>KES {(sale.sellPrice * sale.quantitySold).toLocaleString()}</Text>
+          </View>
+          
+          {customer && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.row}>
+                <Text style={styles.text}>Points Earned:</Text>
+                <Text style={styles.text}>KES {sale.loyaltyPointsEarned.toFixed(2)}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.text}>Points Redeemed:</Text>
+                <Text style={styles.text}>KES {sale.loyaltyPointsRedeemed.toFixed(2)}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.bold}>Remaining Points:</Text>
+                <Text style={styles.bold}>KES {(customer.loyaltyPoints).toFixed(2)}</Text>
+              </View>
+            </>
+          )}
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.footer}>
+            <Text style={styles.text}>Thank you for your business!</Text>
+          </View>
+        </Page>
+      </Document>
+    );
+  };
+
+  return PDFReceiptComponent;
+}), {
+  ssr: false,
+});
 
 export default function ItemsManagementPage() {
   const router = useRouter();
@@ -158,12 +196,12 @@ export default function ItemsManagementPage() {
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
   const [sellForm] = Form.useForm();
-  const [items, setItems] = useState<Prisma.ItemGetPayload<{ include: { branch: true } }>[] | null>(null);
+  const [items, setItems] = useState<ItemWithBranch[] | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isSellModalVisible, setIsSellModalVisible] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-  const [currentItem, setCurrentItem] = useState<any>(null);
+  const [currentItem, setCurrentItem] = useState<ItemWithBranch | null>(null);
   const [stockFilter, setStockFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isNewCustomer, setIsNewCustomer] = useState(false);
@@ -296,7 +334,7 @@ export default function ItemsManagementPage() {
               
               <div class="row">
                 <span class="text">Item:</span>
-                <span class="text">${currentItem.name}</span>
+                <span class="text">${currentItem?.name}</span>
               </div>
               
               <div class="row">
@@ -345,147 +383,147 @@ export default function ItemsManagementPage() {
     }
   };
 
-  const handleSellItem = async (item: Prisma.ItemGetPayload<{ include: { branch: true } }>, values: any) => {
+  const handleSellItem = async (item: ItemWithBranch, values: any) => {
     try {
-        // Find the item in the already fetched data
-        const fetchedItem = fetchedItems?.find(i => i.id === item.id);
+      // Find the item in the already fetched data
+      const fetchedItem = fetchedItems?.find(i => i.id === item.id);
 
-        if (!fetchedItem) {
-            enqueueSnackbar('Item not found', { variant: 'error' });
-            return;
-        }
+      if (!fetchedItem) {
+        enqueueSnackbar('Item not found', { variant: 'error' });
+        return;
+      }
 
-        // Check if sell price is below minimum sell price
-        if (values.sellPrice < fetchedItem.minimumSellPrice) {
-            enqueueSnackbar(`Cannot sell below minimum price of KES ${fetchedItem.minimumSellPrice}`, { variant: 'error' });
-            return;
-        }
+      // Check if sell price is below minimum sell price
+      if (values.sellPrice < fetchedItem.minimumSellPrice) {
+        enqueueSnackbar(`Cannot sell below minimum price of KES ${fetchedItem.minimumSellPrice}`, { variant: 'error' });
+        return;
+      }
 
-        // Ensure we have enough stock
-        if (fetchedItem.quantity < values.quantitySold) {
-            enqueueSnackbar('Not enough stock available', { variant: 'error' });
-            return;
-        }
+      // Ensure we have enough stock
+      if (fetchedItem.quantity < values.quantitySold) {
+        enqueueSnackbar('Not enough stock available', { variant: 'error' });
+        return;
+      }
 
-        // Calculate profit
-        const profit = (values.sellPrice - fetchedItem.price) * values.quantitySold;
+      // Calculate profit
+      const calculatedProfit = (values.sellPrice - fetchedItem.price) * values.quantitySold;
 
-        // Handle customer and loyalty points
-        let customerId = null;
-        let customerName = null;
-        let customerPhone = null;
-        let loyaltyPointsEarned = 0;
-        let loyaltyPointsRedeemed = 0;
+      // Handle customer and loyalty points
+      let saleCustomerId = null;
+      let saleCustomerName = null;
+      let saleCustomerPhone = null;
+      let calculatedLoyaltyPointsEarned = 0;
+      let calculatedLoyaltyPointsRedeemed = 0;
 
-        if (values.customerPhone) {
-            // Try to find existing customer
-            let customer = customers?.find(c => c.phoneNumber === values.customerPhone);
-            let isNewCustomer = false;
+      if (values.customerPhone) {
+        // Try to find existing customer
+        let customer = customers?.find(c => c.phoneNumber === values.customerPhone);
+        let isNewCustomer = false;
 
-            if (!customer && values.customerName) {
-                // Create new customer if not found
-                customer = await createCustomer({
-                    data: {
-                        name: values.customerName,
-                        phoneNumber: values.customerPhone,
-                        loyaltyPoints: 0, // Set initial loyalty points to 0
-                        referredBy: values.referredByPhone ? 
-                            customers?.find(c => c.phoneNumber === values.referredByPhone)?.id : 
-                            undefined
-                    }
-                });
-                isNewCustomer = true;
-            }
-
-            if (customer) {
-                customerId = customer.id;
-                customerName = customer.name;
-                customerPhone = customer.phoneNumber;
-
-                // Only validate and handle redeem points for existing customers
-                if (!isNewCustomer) {
-                    loyaltyPointsRedeemed = values.redeemPoints || 0;
-                    
-                    // Validate redeem points only for existing customers
-                    if (loyaltyPointsRedeemed > customer.loyaltyPoints) {
-                        enqueueSnackbar('Cannot redeem more points than available', { variant: 'error' });
-                        return;
-                    }
-                }
-
-                // Calculate loyalty points (5% of profit for customer)
-                loyaltyPointsEarned = profit * 0.05;
-
-                // Update customer's loyalty points
-                await updateCustomer({
-                    where: { id: customer.id },
-                    data: { 
-                        loyaltyPoints: isNewCustomer ? 
-                            loyaltyPointsEarned : // For new customers, just add earned points
-                            customer.loyaltyPoints - loyaltyPointsRedeemed + loyaltyPointsEarned // For existing customers, handle both redeem and earn
-                    }
-                });
-
-                // If this customer was referred, give points to referrer (2% of profit)
-                if (customer.referredBy) {
-                    const referrer = customers?.find(c => c.id === customer.referredBy);
-                    if (referrer) {
-                        const referrerPoints = profit * 0.02; // 2% of profit for referrer
-                        await updateCustomer({
-                            where: { id: referrer.id },
-                            data: {
-                                loyaltyPoints: referrer.loyaltyPoints + referrerPoints
-                            }
-                        });
-                    }
-                }
-            }
-        }
-
-        // Compute new quantity after selling
-        const newQuantity = fetchedItem.quantity - values.quantitySold;
-
-        // Update item stock
-        await updateItem({
-            where: { id: item.id },
-            data: { quantity: newQuantity },
-        });
-
-        // Create sale record
-        await createSale({
+        if (!customer && values.customerName) {
+          // Create new customer if not found
+          customer = await createCustomer({
             data: {
-                sellPrice: values.sellPrice,
-                quantitySold: values.quantitySold,
-                saleDate: new Date().toISOString(),
-                itemId: item.id,
-                branchId: item.branchId,
-                userId: user?.id || '',
-                itemName: item.name,
-                branchName: item.branch?.name || '',
-                userName: user?.name || '',
-                itemCategory: item.category,
-                itemPrice: item.price,
-                profit: profit,
-                customerId,
-                customerName,
-                customerPhone,
-                loyaltyPointsEarned,
-                loyaltyPointsRedeemed
-            },
-        });
+              name: values.customerName,
+              phoneNumber: values.customerPhone,
+              loyaltyPoints: 0, // Set initial loyalty points to 0
+              referredBy: values.referredByPhone ? 
+                customers?.find(c => c.phoneNumber === values.referredByPhone)?.id : 
+                undefined
+            }
+          });
+          isNewCustomer = true;
+        }
 
-        enqueueSnackbar('Item sold successfully', { variant: 'success' });
-        setIsSellModalVisible(false);
-        sellForm.resetFields();
-        setCurrentCustomer(null);
+        if (customer) {
+          saleCustomerId = customer.id;
+          saleCustomerName = customer.name;
+          saleCustomerPhone = customer.phoneNumber;
 
-        // Refetch items to update UI
-        refetch();
+          // Only validate and handle redeem points for existing customers
+          if (!isNewCustomer) {
+            calculatedLoyaltyPointsRedeemed = values.redeemPoints || 0;
+            
+            // Validate redeem points only for existing customers
+            if (calculatedLoyaltyPointsRedeemed > customer.loyaltyPoints) {
+              enqueueSnackbar('Cannot redeem more points than available', { variant: 'error' });
+              return;
+            }
+          }
+
+          // Calculate loyalty points (5% of profit for customer)
+          calculatedLoyaltyPointsEarned = calculatedProfit * 0.05;
+
+          // Update customer's loyalty points
+          await updateCustomer({
+            where: { id: customer.id },
+            data: { 
+              loyaltyPoints: isNewCustomer ? 
+                calculatedLoyaltyPointsEarned : // For new customers, just add earned points
+                customer.loyaltyPoints - calculatedLoyaltyPointsRedeemed + calculatedLoyaltyPointsEarned // For existing customers, handle both redeem and earn
+            }
+          });
+
+          // If this customer was referred, give points to referrer (2% of profit)
+          if (customer.referredBy) {
+            const referrer = customers?.find(c => c.id === customer.referredBy);
+            if (referrer) {
+              const referrerPoints = calculatedProfit * 0.02; // 2% of profit for referrer
+              await updateCustomer({
+                where: { id: referrer.id },
+                data: {
+                  loyaltyPoints: referrer.loyaltyPoints + referrerPoints
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // Compute new quantity after selling
+      const newQuantity = fetchedItem.quantity - values.quantitySold;
+
+      // Update item stock
+      await updateItem({
+        where: { id: item.id },
+        data: { quantity: newQuantity },
+      });
+
+      // Create sale record
+      await createSale({
+        data: {
+          sellPrice: values.sellPrice,
+          quantitySold: values.quantitySold,
+          saleDate: new Date().toISOString(),
+          itemId: item.id,
+          branchId: item.branchId,
+          userId: user?.id || '',
+          itemName: item.name,
+          branchName: item.branch?.name || '',
+          userName: user?.name || '',
+          itemCategory: item.category,
+          itemPrice: item.price,
+          profit: calculatedProfit,
+          customerId: saleCustomerId,
+          customerName: saleCustomerName,
+          customerPhone: saleCustomerPhone,
+          loyaltyPointsEarned: calculatedLoyaltyPointsEarned,
+          loyaltyPointsRedeemed: calculatedLoyaltyPointsRedeemed
+        },
+      });
+
+      enqueueSnackbar('Item sold successfully', { variant: 'success' });
+      setIsSellModalVisible(false);
+      sellForm.resetFields();
+      setCurrentCustomer(null);
+
+      // Refetch items to update UI
+      refetch();
     } catch (error) {
-        console.error('Error in handleSellItem:', error);
-        enqueueSnackbar('Failed to sell item', { variant: 'error' });
+      console.error('Error in handleSellItem:', error);
+      enqueueSnackbar('Failed to sell item', { variant: 'error' });
     }
-};
+  };
 
   const handleFilterByBranch = (branchId: string) => {
     setSelectedBranch(branchId);
@@ -1512,13 +1550,11 @@ const handleStockFilter = (value: string | null) => {
         width={800}
       >
         <div ref={receiptRef}>
-          {currentSale && (
-            <Receipt
-              sale={currentSale}
-              customer={currentCustomer}
-              item={currentItem}
-            />
-          )}
+          <PDFReceipt
+            sale={currentSale}
+            customer={currentCustomer}
+            item={currentItem}
+          />
         </div>
       </Modal>
     </PageLayout>

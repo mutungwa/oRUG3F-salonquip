@@ -1,178 +1,162 @@
 'use client'
 
+import { useUserContext } from '@/core/context'
 import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
-import { DownloadOutlined, SearchOutlined, PrinterOutlined } from '@ant-design/icons'
+import { DownloadOutlined, PrinterOutlined, SearchOutlined } from '@ant-design/icons'
 import {
   Button,
+  Card,
   Col,
   DatePicker,
+  Input,
+  Modal,
   Row,
   Space,
-  Table,
-  Typography,
-  Tag,
-  Input,
-  Card,
-  Tabs,
   Statistic,
-  Divider,
-  Modal,
+  Table,
+  Tabs,
+  Tag,
+  Typography
 } from 'antd'
-import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
-import isBetween from 'dayjs/plugin/isBetween'
-import { useSnackbar } from 'notistack'
-import { useState, useMemo, useEffect, useRef } from 'react'
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import dayjs from 'dayjs'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { useUserContext } from '@/core/context'
-import { Document, Page, Text as PDFText, View, StyleSheet, PDFViewer } from '@react-pdf/renderer'
+import { useSnackbar } from 'notistack'
+import { useMemo, useRef, useState } from 'react'
+import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
 
-// Add receipt styles
-const receiptStyles = StyleSheet.create({
-  page: {
-    padding: 20,
-    fontSize: 10,
-    width: '80mm',
-  },
-  header: {
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  title: {
-    fontSize: 14,
-    marginBottom: 5,
-  },
-  subtitle: {
-    fontSize: 12,
-    marginBottom: 5,
-  },
-  divider: {
-    borderBottom: 1,
-    marginVertical: 5,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 2,
-  },
-  footer: {
-    marginTop: 20,
-    textAlign: 'center',
-  },
-  text: {
-    fontSize: 10,
-  },
-  bold: {
-    fontWeight: 'bold',
-  },
-});
+// Dynamically import the PDF components with no SSR
+const PDFReceipt = dynamic(() => import('@react-pdf/renderer').then(mod => {
+  const { Document, Page, Text, View, StyleSheet } = mod;
+  
+  const styles = StyleSheet.create({
+    page: {
+      padding: 20,
+      fontSize: 10,
+      width: '80mm',
+    },
+    header: {
+      marginBottom: 10,
+      textAlign: 'center',
+    },
+    title: {
+      fontSize: 14,
+      marginBottom: 5,
+    },
+    subtitle: {
+      fontSize: 12,
+      marginBottom: 5,
+    },
+    divider: {
+      borderBottom: 1,
+      marginVertical: 5,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginVertical: 2,
+    },
+    footer: {
+      marginTop: 20,
+      textAlign: 'center',
+    },
+    text: {
+      fontSize: 10,
+    },
+    bold: {
+      fontWeight: 'bold',
+    },
+  });
 
-interface ReceiptProps {
-  sale: {
-    id: string;
-    saleDate: string;
-    quantitySold: number;
-    sellPrice: number;
-    loyaltyPointsEarned: number;
-    loyaltyPointsRedeemed: number;
-  };
-  customer?: {
-    name: string;
-    phoneNumber?: string;
-    loyaltyPoints: number;
-  } | null;
-  item: {
-    name: string;
-  };
-}
-
-// Add Receipt component
-const Receipt: React.FC<ReceiptProps> = ({ sale, customer, item }) => {
-  return (
-    <Document>
-      <Page size="A4" style={receiptStyles.page}>
-        <View style={receiptStyles.header}>
-          <PDFText style={receiptStyles.title}>SALON QUIP</PDFText>
-          <PDFText style={receiptStyles.subtitle}>Sales Receipt</PDFText>
-        </View>
-        
-        <View style={receiptStyles.divider} />
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Date:</PDFText>
-          <PDFText style={receiptStyles.text}>{dayjs(sale.saleDate).format('YYYY-MM-DD HH:mm')}</PDFText>
-        </View>
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Receipt #:</PDFText>
-          <PDFText style={receiptStyles.text}>{sale.id}</PDFText>
-        </View>
-        
-        <View style={receiptStyles.divider} />
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Customer:</PDFText>
-          <PDFText style={receiptStyles.text}>{customer?.name || 'Walk-in Customer'}</PDFText>
-        </View>
-        
-        {customer?.phoneNumber && (
-          <View style={receiptStyles.row}>
-            <PDFText style={receiptStyles.text}>Phone:</PDFText>
-            <PDFText style={receiptStyles.text}>{customer.phoneNumber}</PDFText>
+  return function PDFReceiptComponent({ sale, customer, item }: any) {
+    return (
+      <Document>
+        <Page size="A4" style={styles.page}>
+          <View style={styles.header}>
+            <Text style={styles.title}>SALON QUIP</Text>
+            <Text style={styles.subtitle}>Sales Receipt</Text>
           </View>
-        )}
-        
-        <View style={receiptStyles.divider} />
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Item:</PDFText>
-          <PDFText style={receiptStyles.text}>{item.name}</PDFText>
-        </View>
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Quantity:</PDFText>
-          <PDFText style={receiptStyles.text}>{sale.quantitySold}</PDFText>
-        </View>
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.text}>Unit Price:</PDFText>
-          <PDFText style={receiptStyles.text}>KES {sale.sellPrice.toLocaleString()}</PDFText>
-        </View>
-        
-        <View style={receiptStyles.row}>
-          <PDFText style={receiptStyles.bold}>Total Amount:</PDFText>
-          <PDFText style={receiptStyles.bold}>KES {(sale.sellPrice * sale.quantitySold).toLocaleString()}</PDFText>
-        </View>
-        
-        {customer && (
-          <>
-            <View style={receiptStyles.divider} />
-            <View style={receiptStyles.row}>
-              <PDFText style={receiptStyles.text}>Points Earned:</PDFText>
-              <PDFText style={receiptStyles.text}>KES {sale.loyaltyPointsEarned.toFixed(2)}</PDFText>
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Date:</Text>
+            <Text style={styles.text}>{dayjs(sale.saleDate).format('YYYY-MM-DD HH:mm')}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Receipt #:</Text>
+            <Text style={styles.text}>{sale.id}</Text>
+          </View>
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Customer:</Text>
+            <Text style={styles.text}>{customer?.name || 'Walk-in Customer'}</Text>
+          </View>
+          
+          {customer?.phoneNumber && (
+            <View style={styles.row}>
+              <Text style={styles.text}>Phone:</Text>
+              <Text style={styles.text}>{customer.phoneNumber}</Text>
             </View>
-            <View style={receiptStyles.row}>
-              <PDFText style={receiptStyles.text}>Points Redeemed:</PDFText>
-              <PDFText style={receiptStyles.text}>KES {sale.loyaltyPointsRedeemed.toFixed(2)}</PDFText>
-            </View>
-            <View style={receiptStyles.row}>
-              <PDFText style={receiptStyles.bold}>Remaining Points:</PDFText>
-              <PDFText style={receiptStyles.bold}>KES {(customer.loyaltyPoints).toFixed(2)}</PDFText>
-            </View>
-          </>
-        )}
-        
-        <View style={receiptStyles.divider} />
-        
-        <View style={receiptStyles.footer}>
-          <PDFText style={receiptStyles.text}>Thank you for your business!</PDFText>
-        </View>
-      </Page>
-    </Document>
-  );
-};
+          )}
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Item:</Text>
+            <Text style={styles.text}>{item.name}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Quantity:</Text>
+            <Text style={styles.text}>{sale.quantitySold}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.text}>Unit Price:</Text>
+            <Text style={styles.text}>KES {sale.sellPrice.toLocaleString()}</Text>
+          </View>
+          
+          <View style={styles.row}>
+            <Text style={styles.bold}>Total Amount:</Text>
+            <Text style={styles.bold}>KES {(sale.sellPrice * sale.quantitySold).toLocaleString()}</Text>
+          </View>
+          
+          {customer && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.row}>
+                <Text style={styles.text}>Points Earned:</Text>
+                <Text style={styles.text}>KES {sale.loyaltyPointsEarned.toFixed(2)}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.text}>Points Redeemed:</Text>
+                <Text style={styles.text}>KES {sale.loyaltyPointsRedeemed.toFixed(2)}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.bold}>Remaining Points:</Text>
+                <Text style={styles.bold}>KES {(customer.loyaltyPoints).toFixed(2)}</Text>
+              </View>
+            </>
+          )}
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.footer}>
+            <Text style={styles.text}>Thank you for your business!</Text>
+          </View>
+        </Page>
+      </Document>
+    );
+  };
+}), {
+  ssr: false,
+})
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -768,7 +752,7 @@ export default function StockManagementPage() {
       >
         <div ref={receiptRef}>
           {currentSale && (
-            <Receipt
+            <PDFReceipt
               sale={currentSale}
               customer={currentCustomer}
               item={currentItem}
