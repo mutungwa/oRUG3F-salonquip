@@ -1,4 +1,4 @@
-import { db } from '@/core/db';
+import { db } from '@/core/database';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {

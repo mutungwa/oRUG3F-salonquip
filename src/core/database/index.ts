@@ -5,3 +5,6 @@ export const Database = {
   getUnprotected: () => DatabaseUnprotected,
   get: getDatabaseProtected,
 }
+
+// Export db for API routes
+export const db = DatabaseUnprotected
