@@ -1,29 +1,49 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { Prisma } from '@prisma/client'
-import {
-  Typography,
-  Select,
-  Table,
-  Button,
-  Modal,
-  Form,
-  InputNumber,
-  Input,
-  message,
-  Card,
-  Tabs,
-  DatePicker,
-} from 'antd'
-import { SwapOutlined, SearchOutlined } from '@ant-design/icons'
 import { useUserContext } from '@/core/context'
-import { useRouter, useParams } from 'next/navigation'
-import { useSnackbar } from 'notistack'
-import dayjs from 'dayjs'
 import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import {
+    FileTextOutlined,
+    SearchOutlined,
+    SwapOutlined
+} from '@ant-design/icons'
+import { Prisma } from '@prisma/client'
+import {
+    Alert,
+    Button,
+    Card,
+    Col,
+    DatePicker,
+    Form,
+    Input,
+    InputNumber,
+    Modal,
+    Row,
+    Select,
+    Space,
+    Statistic,
+    Table,
+    Tabs,
+    Typography
+} from 'antd'
+import dayjs from 'dayjs'
+import { useParams, useRouter } from 'next/navigation'
+import { useSnackbar } from 'notistack'
+import { useEffect, useMemo, useState } from 'react'
+import {
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Legend,
+    Pie,
+    PieChart,
+    Tooltip,
+    XAxis,
+    YAxis
+} from 'recharts'
+import * as XLSX from 'xlsx'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -31,6 +51,9 @@ const { Option } = Select
 const { TabPane } = Tabs
 
 const { RangePicker } = DatePicker
+
+// Define colors for charts
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1', '#a4de6c', '#d0ed57'];
 
 // Update the type definition at the top of the file
 type StockTransfer = {
@@ -74,8 +97,30 @@ export default function HomePage() {
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [transferCategoryId, setTransferCategoryId] = useState<string>('')
   const [transferSourceBranch, setTransferSourceBranch] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+  const [isReportModalVisible, setIsReportModalVisible] = useState(false)
+  const [reportData, setReportData] = useState<any[]>([])
+  const [reportBranch, setReportBranch] = useState<string | null>(null)
+  const [reportDateRange, setReportDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null)
+  const [stockFilter, setStockFilter] = useState<string | null>(null)
 
   const isAdmin = checkRole('admin')
+
+  // Handle window resize for responsive design
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    // Check on initial load
+    checkIfMobile();
+
+    // Add event listener for window resize
+    window.addEventListener('resize', checkIfMobile);
+
+    // Clean up
+    return () => window.removeEventListener('resize', checkIfMobile);
+  }, []);
 
   const { data: branches, isLoading: branchesLoading } =
     Api.branch.findMany.useQuery({})
@@ -183,10 +228,10 @@ export default function HomePage() {
     }));
   }, [salesData, dateRange]);
 
-  const { 
-    data: recentTransfers, 
+  const {
+    data: recentTransfers,
     isLoading: transfersLoading,
-    refetch: refetchTransfers 
+    refetch: refetchTransfers
   } = Api.stockTransfer.findMany.useQuery({}, {
     onSuccess: (data) => {
       console.log('Transfers loaded in component:', data)
@@ -296,7 +341,7 @@ export default function HomePage() {
           // Create new item in destination branch
           // Extract the category identifier (first 3 digits)
           const categoryId = selectedItem.sku.substring(0, 3);
-          
+
           let newSku: string;
           if (existingCategoryItems && existingCategoryItems.length > 0) {
             // Get the last number and increment it
@@ -307,7 +352,7 @@ export default function HomePage() {
             // First item in this category for this branch
             newSku = `${categoryId}001`;
           }
-          
+
           const newItem = await createItem({
             data: {
               name: selectedItem.name,
@@ -409,6 +454,321 @@ export default function HomePage() {
 
   const lowStockItems = items?.filter(item => item.quantity < item.minimumStockLevel);
 
+  // Calculate inventory stats for dashboard
+  const calculateInventoryStats = () => {
+    if (!items) return { totalItems: 0, totalValue: 0, outOfStock: 0, lowStock: 0 };
+
+    const totalItems = items.length;
+    const totalValue = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const outOfStock = items.filter(item => item.quantity === 0).length;
+    const lowStock = items.filter(item => item.quantity > 0 && item.quantity < item.minimumStockLevel).length;
+
+    return { totalItems, totalValue, outOfStock, lowStock };
+  };
+
+  // Calculate category distribution for dashboard
+  const calculateCategoryDistribution = () => {
+    if (!items) return [];
+
+    const categories = new Map();
+    items.forEach(item => {
+      if (categories.has(item.category)) {
+        categories.set(item.category, categories.get(item.category) + 1);
+      } else {
+        categories.set(item.category, 1);
+      }
+    });
+
+    return Array.from(categories.entries()).map(([name, value], index) => ({
+      name,
+      value,
+      fill: COLORS[index % COLORS.length]
+    }));
+  };
+
+  // Calculate branch distribution for dashboard
+  const calculateBranchDistribution = () => {
+    if (!items || !branches) return [];
+
+    const branchCounts = new Map();
+    branches.forEach(branch => {
+      branchCounts.set(branch.id, 0);
+    });
+
+    items.forEach(item => {
+      if (branchCounts.has(item.branchId)) {
+        branchCounts.set(item.branchId, branchCounts.get(item.branchId) + 1);
+      }
+    });
+
+    return Array.from(branchCounts.entries()).map(([branchId, count], index) => {
+      const branch = branches.find(b => b.id === branchId);
+      return {
+        name: branch?.name || 'Unknown',
+        value: count,
+        fill: COLORS[index % COLORS.length]
+      };
+    });
+  };
+
+  // Calculate stock level data for dashboard
+  const calculateStockLevelData = () => {
+    if (!items) return [];
+
+    const outOfStock = items.filter(item => item.quantity === 0).length;
+    const lowStock = items.filter(item => item.quantity > 0 && item.quantity < item.minimumStockLevel).length;
+    const normalStock = items.filter(item => item.quantity >= item.minimumStockLevel).length;
+
+    return [
+      { name: 'Out of Stock', value: outOfStock, fill: '#FF8042' },
+      { name: 'Low Stock', value: lowStock, fill: '#FFBB28' },
+      { name: 'Normal', value: normalStock, fill: '#00C49F' }
+    ];
+  };
+
+  // Get top selling items for dashboard
+  const getTopSellingItems = () => {
+    if (!salesData) return [];
+
+    const itemSales = new Map();
+
+    salesData.forEach(sale => {
+      if (itemSales.has(sale.itemName)) {
+        itemSales.set(sale.itemName, itemSales.get(sale.itemName) + sale.quantitySold);
+      } else {
+        itemSales.set(sale.itemName, sale.quantitySold);
+      }
+    });
+
+    return Array.from(itemSales.entries())
+      .map(([name, quantity]) => ({ name, quantity }))
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
+  };
+
+  // Generate initial report
+  const generateInitialReport = () => {
+    if (!items || !salesData) return;
+
+    // Calculate total profit from all sales
+    const totalSalesProfit = salesData.reduce((sum, sale) => sum + sale.profit, 0);
+
+    const report = items.map(item => {
+      // Calculate total sales for this item
+      const itemSales = salesData.filter(sale => sale.itemId === item.id);
+      const totalSales = itemSales.reduce((sum, sale) => sum + (sale.sellPrice * sale.quantitySold), 0);
+      const totalQuantitySold = itemSales.reduce((sum, sale) => sum + sale.quantitySold, 0);
+      const totalProfit = itemSales.reduce((sum, sale) => sum + sale.profit, 0);
+
+      // Calculate total value of current stock
+      const currentStockValue = item.quantity * item.price;
+
+      return {
+        name: item.name,
+        sku: item.sku,
+        category: item.category,
+        currentQuantity: item.quantity,
+        buyingPrice: item.price,
+        minimumSellPrice: item.minimumSellPrice || 0,
+        currentStockValue,
+        totalQuantitySold,
+        totalSales,
+        totalProfit,
+        profitMargin: totalSales > 0 ? ((totalProfit / totalSales) * 100).toFixed(2) : '0',
+        branch: item.branch?.name,
+        minimumStockLevel: item.minimumStockLevel,
+        stockStatus: item.quantity === 0
+          ? 'Out of Stock'
+          : item.quantity < item.minimumStockLevel
+            ? 'Low Stock'
+            : 'Normal'
+      };
+    });
+
+    // Calculate summary statistics
+    const summary = {
+      totalItems: report.length,
+      totalStockValue: report.reduce((sum, item) => sum + item.currentStockValue, 0),
+      totalSales: report.reduce((sum, item) => sum + item.totalSales, 0),
+      totalProfit: report.reduce((sum, item) => sum + item.totalProfit, 0),
+      totalSalesProfit, // Add the total profit from all sales
+      outOfStock: report.filter(item => item.currentQuantity === 0).length,
+      lowStock: report.filter(item => item.currentQuantity > 0 && item.currentQuantity < item.minimumStockLevel).length,
+      averageProfitMargin: report.reduce((sum, item) => sum + parseFloat(item.profitMargin), 0) / report.length
+    };
+
+    setReportData([...report, { isSummary: true, ...summary }]);
+  };
+
+  // Handle report modal open
+  const handleReportModalOpen = () => {
+    setIsReportModalVisible(true);
+    generateInitialReport();
+  };
+
+  // Generate report with filters
+  const generateReport = () => {
+    if (!items || !salesData) return;
+
+    // Filter sales based on date range if selected
+    let filteredSales = salesData;
+    if (reportDateRange) {
+      const [startDate, endDate] = reportDateRange;
+      filteredSales = salesData.filter(sale => {
+        const saleDate = dayjs(sale.saleDate);
+        return saleDate.isAfter(startDate, 'day') && saleDate.isBefore(endDate, 'day');
+      });
+    }
+
+    // Filter items based on branch if selected
+    let filteredItems = items;
+    if (reportBranch) {
+      filteredItems = items.filter(item => item.branchId === reportBranch);
+    }
+
+    // Calculate total profit from all sales in the filtered period
+    const totalSalesProfit = filteredSales.reduce((sum, sale) => sum + sale.profit, 0);
+
+    const report = filteredItems.map(item => {
+      // Calculate total sales for this item
+      const itemSales = filteredSales.filter(sale => sale.itemId === item.id);
+      const totalSales = itemSales.reduce((sum, sale) => sum + (sale.sellPrice * sale.quantitySold), 0);
+      const totalQuantitySold = itemSales.reduce((sum, sale) => sum + sale.quantitySold, 0);
+      const totalProfit = itemSales.reduce((sum, sale) => sum + sale.profit, 0);
+
+      // Calculate total value of current stock
+      const currentStockValue = item.quantity * item.price;
+
+      return {
+        name: item.name,
+        sku: item.sku,
+        category: item.category,
+        currentQuantity: item.quantity,
+        buyingPrice: item.price,
+        minimumSellPrice: item.minimumSellPrice || 0,
+        currentStockValue,
+        totalQuantitySold,
+        totalSales,
+        totalProfit,
+        profitMargin: totalSales > 0 ? ((totalProfit / totalSales) * 100).toFixed(2) : '0',
+        branch: item.branch?.name,
+        minimumStockLevel: item.minimumStockLevel,
+        stockStatus: item.quantity === 0
+          ? 'Out of Stock'
+          : item.quantity < item.minimumStockLevel
+            ? 'Low Stock'
+            : 'Normal'
+      };
+    });
+
+    // Calculate summary statistics
+    const summary = {
+      totalItems: report.length,
+      totalStockValue: report.reduce((sum, item) => sum + item.currentStockValue, 0),
+      totalSales: report.reduce((sum, item) => sum + item.totalSales, 0),
+      totalProfit: report.reduce((sum, item) => sum + item.totalProfit, 0),
+      totalSalesProfit, // Add the total profit from all sales
+      outOfStock: report.filter(item => item.currentQuantity === 0).length,
+      lowStock: report.filter(item => item.currentQuantity > 0 && item.currentQuantity < item.minimumStockLevel).length,
+      averageProfitMargin: report.reduce((sum, item) => sum + parseFloat(item.profitMargin), 0) / report.length
+    };
+
+    setReportData([...report, { isSummary: true, ...summary }]);
+    setIsReportModalVisible(true);
+  };
+
+  // Handle Excel download
+  const handleDownloadExcel = () => {
+    try {
+      // Create a new workbook
+      const wb = XLSX.utils.book_new();
+
+      // Prepare the data for Excel
+      const excelData = reportData.map(item => {
+        if (item.isSummary) {
+          return {
+            'Name': 'SUMMARY',
+            'Total Items': item.totalItems,
+            'Out of Stock': item.outOfStock,
+            'Low Stock': item.lowStock,
+            'Total Stock Value': `KES ${item.totalStockValue.toLocaleString()}`,
+            'Total Sales': `KES ${item.totalSales.toLocaleString()}`,
+            'Total Profit': `KES ${item.totalProfit.toLocaleString()}`,
+            'Average Profit Margin': `${item.averageProfitMargin.toFixed(2)}%`
+          };
+        }
+        return {
+          'Name': item.name,
+          'SKU': item.sku,
+          'Category': item.category,
+          'Branch': item.branch,
+          'Current Stock': item.currentQuantity,
+          'Buying Price': `KES ${item.buyingPrice.toLocaleString()}`,
+          'Min. Sell Price': `KES ${item.minimumSellPrice.toLocaleString()}`,
+          'Current Stock Value': `KES ${item.currentStockValue.toLocaleString()}`,
+          'Total Quantity Sold': item.totalQuantitySold,
+          'Total Sales': `KES ${item.totalSales.toLocaleString()}`,
+          'Total Profit': `KES ${item.totalProfit.toLocaleString()}`,
+          'Profit Margin': `${item.profitMargin}%`,
+          'Stock Status': item.stockStatus
+        };
+      });
+
+      // Create a worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 30 }, // Name
+        { wch: 15 }, // SKU
+        { wch: 20 }, // Category
+        { wch: 20 }, // Branch
+        { wch: 15 }, // Current Stock
+        { wch: 15 }, // Buying Price
+        { wch: 15 }, // Min. Sell Price
+        { wch: 15 }, // Current Stock Value
+        { wch: 15 }, // Total Quantity Sold
+        { wch: 15 }, // Total Sales
+        { wch: 15 }, // Total Profit
+        { wch: 15 }, // Profit Margin
+        { wch: 15 }  // Stock Status
+      ];
+      ws['!cols'] = colWidths;
+
+      // Add the worksheet to the workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Inventory Report');
+
+      // Generate the Excel file
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+      // Create a download link
+      const url = window.URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = url;
+
+      // Generate filename with date
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `inventory_report_${date}.xlsx`;
+
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      enqueueSnackbar('Report downloaded successfully', { variant: 'success' });
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      enqueueSnackbar('Failed to download report', { variant: 'error' });
+    }
+  };
+
+  // Handle stock filter
+  const handleStockFilter = (value: string | null) => {
+    setStockFilter(value);
+  };
+
   // Log the error if it exists
   useEffect(() => {
     if (salesError) {
@@ -416,24 +776,171 @@ export default function HomePage() {
     }
   }, [salesError]);
 
+  // Get inventory stats
+  const inventoryStats = calculateInventoryStats();
+  const categoryData = calculateCategoryDistribution();
+  const branchData = calculateBranchDistribution();
+  const stockLevelData = calculateStockLevelData();
+  const topSellingItems = getTopSellingItems();
+
   return (
     <PageLayout layout="full-width">
+      {/* Dashboard Section */}
+      <Title level={2}>Dashboard</Title>
+      <Text>Overview of your inventory and sales performance</Text>
+
+      {/* Alerts Section */}
+      {items && (items.some(item => item.quantity < item.minimumStockLevel && item.quantity > 0) || items.some(item => item.quantity === 0)) && (
+        <Space direction="vertical" style={{ width: '100%', margin: '16px 0' }}>
+          {items.some(item => item.quantity === 0) && (
+            <Alert
+              message="Out of Stock Alert"
+              description="Some items are out of stock. Please restock these items."
+              type="error"
+              showIcon
+            />
+          )}
+          {items.some(item => item.quantity < item.minimumStockLevel && item.quantity > 0) && (
+            <Alert
+              message="Low Stock Alert"
+              description="Some items are running low on stock (below minimum level). Please check the inventory."
+              type="warning"
+              showIcon
+            />
+          )}
+        </Space>
+      )}
+
+      {/* Stats Cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: '24px', marginTop: '16px' }}>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic
+              title="Total Items"
+              value={inventoryStats.totalItems}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic
+              title="Total Inventory Value"
+              value={inventoryStats.totalValue}
+              precision={2}
+              prefix="KES "
+              valueStyle={{ color: '#3f8600' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic
+              title="Out of Stock Items"
+              value={inventoryStats.outOfStock}
+              valueStyle={{ color: '#cf1322' }}
+              suffix={`/ ${inventoryStats.totalItems}`}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic
+              title="Low Stock Items"
+              value={inventoryStats.lowStock}
+              valueStyle={{ color: '#faad14' }}
+              suffix={`/ ${inventoryStats.totalItems}`}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Charts Row */}
+      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+        {/* Stock Level Distribution */}
+        <Col xs={24} md={12}>
+          <Card title="Stock Level Distribution">
+            <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <PieChart width={isMobile ? 250 : 300} height={300}>
+                <Pie
+                  data={stockLevelData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={true}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {stockLevelData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => [`${value} items`, 'Count']} />
+                <Legend />
+              </PieChart>
+            </div>
+          </Card>
+        </Col>
+
+        {/* Category Distribution */}
+        <Col xs={24} md={12}>
+          <Card title="Category Distribution">
+            <div style={{ height: '300px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <PieChart width={isMobile ? 250 : 300} height={300}>
+                <Pie
+                  data={categoryData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={true}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {categoryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => [`${value} items`, 'Count']} />
+                <Legend />
+              </PieChart>
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Report Button */}
+      <div style={{ marginBottom: '24px', textAlign: 'right' }}>
+        <Button
+          type="primary"
+          icon={<FileTextOutlined />}
+          onClick={handleReportModalOpen}
+        >
+          Generate Inventory Report
+        </Button>
+      </div>
+
+      {/* Original Home Page Content */}
       <Card style={{ marginBottom: '20px' }}>
         <Tabs defaultActiveKey="1">
           <TabPane tab="Total Items in Branches" key="1">
-            <BarChart
-              width={500}
-              height={300}
-              data={totalItemsInBranches}
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="branchName" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="totalItems" fill="#8884d8" />
-            </BarChart>
+            <div style={{ width: '100%', overflowX: 'auto' }}>
+              <BarChart
+                width={isMobile ? window.innerWidth - 50 : 500}
+                height={300}
+                data={totalItemsInBranches}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                style={{ minWidth: '300px' }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="branchName" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="totalItems" fill="#8884d8" />
+              </BarChart>
+            </div>
           </TabPane>
           <TabPane tab="Recent Transfers" key="2">
             {transfersLoading ? (
@@ -442,73 +949,110 @@ export default function HomePage() {
               <div>No transfers found</div>
             ) : (
               <>
-                <Button 
-                  onClick={() => refetchTransfers()} 
+                <Button
+                  onClick={() => refetchTransfers()}
                   style={{ marginBottom: '16px' }}
                 >
                   Refresh Transfers
                 </Button>
-                <Table
-                  dataSource={recentTransfers}
-                  columns={[
-                    {
-                      title: 'Item Name',
-                      key: 'itemName',
-                      render: (_, record: StockTransfer) => {
-                        return record.item?.name || 'N/A';
-                      }
-                    },
-                    {
-                      title: 'Quantity',
-                      dataIndex: 'quantity',
-                      key: 'quantity'
-                    },
-                    {
-                      title: 'From Branch',
-                      key: 'fromBranch',
-                      render: (_, record: StockTransfer) => {
-                        return record.fromBranch?.name || 'N/A';
-                      }
-                    },
-                    {
-                      title: 'To Branch',
-                      key: 'toBranch',
-                      render: (_, record: StockTransfer) => {
-                        return record.toBranch?.name || 'N/A';
-                      }
-                    },
-                    {
-                      title: 'Date',
-                      dataIndex: 'transferDate',
-                      key: 'transferDate',
-                      render: (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
-                    },
-                  ]}
-                  rowKey="id"
-                  pagination={{ pageSize: 5 }}
-                />
+                <div style={{ width: '100%', overflowX: 'auto' }}>
+                  <Table
+                    dataSource={recentTransfers}
+                    columns={[
+                      {
+                        title: 'Item Name',
+                        key: 'itemName',
+                        render: (_, record: StockTransfer) => {
+                          return record.item?.name || 'N/A';
+                        },
+                        ellipsis: isMobile
+                      },
+                      {
+                        title: 'Quantity',
+                        dataIndex: 'quantity',
+                        key: 'quantity'
+                      },
+                      {
+                        title: 'From Branch',
+                        key: 'fromBranch',
+                        render: (_, record: StockTransfer) => {
+                          return record.fromBranch?.name || 'N/A';
+                        },
+                        responsive: ['md']
+                      },
+                      {
+                        title: 'To Branch',
+                        key: 'toBranch',
+                        render: (_, record: StockTransfer) => {
+                          return record.toBranch?.name || 'N/A';
+                        },
+                        responsive: ['md']
+                      },
+                      {
+                        title: 'Date',
+                        dataIndex: 'transferDate',
+                        key: 'transferDate',
+                        render: (date: string) => dayjs(date).format(isMobile ? 'YYYY-MM-DD' : 'YYYY-MM-DD HH:mm')
+                      },
+                    ]}
+                    rowKey="id"
+                    pagination={{
+                      pageSize: 5,
+                      size: isMobile ? 'small' : undefined
+                    }}
+                    scroll={{ x: isMobile ? 600 : undefined }}
+                    size={isMobile ? 'small' : 'middle'}
+                  />
+                </div>
               </>
             )}
           </TabPane>
           <TabPane tab="Low Stock Levels" key="3">
-            <ul>
-              {lowStockItems?.map(item => (
-                <li key={item.id}>
-                  {item.name} - {item.description} - {item.category} - {item.quantity} in stock
-                </li>
-              ))}
-            </ul>
+            <div style={{ width: '100%', overflowX: 'auto' }}>
+              {isMobile ? (
+                <ul style={{ paddingLeft: '20px' }}>
+                  {lowStockItems?.map(item => (
+                    <li key={item.id} style={{ marginBottom: '10px', wordBreak: 'break-word' }}>
+                      <strong>{item.name}</strong> - {item.quantity} in stock
+                      <br />
+                      <small>{item.category} - {item.description}</small>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <ul>
+                  {lowStockItems?.map(item => (
+                    <li key={item.id}>
+                      {item.name} - {item.description} - {item.category} - {item.quantity} in stock
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </TabPane>
           <TabPane tab="Sales Comparison" key="4">
-            <RangePicker onChange={setDateRange} style={{ marginBottom: '20px' }} />
-            <BarChart width={600} height={300} data={filteredSalesData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="totalSold" fill="#8884d8" />
-            </BarChart>
+            <div style={{ width: '100%', overflowX: 'auto', marginBottom: '20px' }}>
+              <RangePicker
+                onChange={setDateRange}
+                style={{ marginBottom: '20px', width: isMobile ? '100%' : 'auto' }}
+              />
+            </div>
+            <div style={{ width: '100%', overflowX: 'auto' }}>
+              <BarChart
+                width={isMobile ? window.innerWidth - 50 : 600}
+                height={300}
+                data={filteredSalesData}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                style={{ minWidth: '300px' }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="totalSold" fill="#8884d8" />
+              </BarChart>
+            </div>
             <div style={{ marginTop: '20px' }}>
               <Title level={4}>Sales Summary</Title>
               <Text>
@@ -537,7 +1081,9 @@ export default function HomePage() {
           textAlign: 'center',
           marginBottom: '20px',
           display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
           justifyContent: 'center',
+          alignItems: 'center',
           gap: '10px',
         }}
       >
@@ -545,7 +1091,7 @@ export default function HomePage() {
           placeholder="Select Branch"
           onChange={handleBranchChange}
           loading={branchesLoading}
-          style={{ width: 200 }}
+          style={{ width: isMobile ? '100%' : 200 }}
           allowClear
         >
           {branches?.map(branch => (
@@ -555,25 +1101,36 @@ export default function HomePage() {
           ))}
         </Select>
         <Input
-          placeholder="Search by item name"
+          placeholder={isMobile ? "Search..." : "Search by item name"}
           value={searchText}
           onChange={e => setSearchText(e.target.value)}
-          style={{ width: 200 }}
+          style={{ width: isMobile ? '100%' : 200 }}
           prefix={<SearchOutlined />}
         />
-        <Button type="primary" onClick={handleSearch}>
+        <Button
+          type="primary"
+          onClick={handleSearch}
+          style={{ width: isMobile ? '100%' : 'auto' }}
+        >
           Search
         </Button>
       </div>
 
       {/* Items Table */}
-      <Table
-        dataSource={items}
-        columns={columns}
-        loading={itemsLoading}
-        rowKey="id"
-        pagination={{ pageSize: 10 }}
-      />
+      <div style={{ width: '100%', overflowX: 'auto' }}>
+        <Table
+          dataSource={items}
+          columns={columns}
+          loading={itemsLoading}
+          rowKey="id"
+          pagination={{
+            pageSize: 10,
+            size: isMobile ? 'small' : undefined
+          }}
+          scroll={{ x: isMobile ? 800 : undefined }}
+          size={isMobile ? 'small' : 'middle'}
+        />
+      </div>
 
       {/* Transfer Modal */}
       <Modal
@@ -587,6 +1144,17 @@ export default function HomePage() {
             !transferDetails.toBranchId ||
             transferDetails.quantity > (selectedItem?.quantity || 0) ||
             selectedBranch === transferDetails.toBranchId,
+        }}
+        width={isMobile ? '95%' : 520}
+        style={{
+          top: isMobile ? 20 : 100,
+          maxWidth: isMobile ? '95vw' : '520px'
+        }}
+        styles={{
+          body: {
+            maxHeight: isMobile ? '70vh' : '80vh',
+            overflowY: 'auto'
+          }
         }}
       >
         <Form layout="vertical">
@@ -636,6 +1204,139 @@ export default function HomePage() {
             </Form.Item>
           )}
         </Form>
+      </Modal>
+
+      {/* Report Modal */}
+      <Modal
+        title="Inventory Report"
+        open={isReportModalVisible}
+        onCancel={() => setIsReportModalVisible(false)}
+        width={isMobile ? '95%' : 800}
+        footer={[
+          <Button key="close" onClick={() => setIsReportModalVisible(false)}>
+            Close
+          </Button>,
+          <Button key="download" type="primary" onClick={handleDownloadExcel}>
+            Download Excel
+          </Button>
+        ]}
+      >
+        <div style={{ marginBottom: '20px' }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="Branch">
+                <Select
+                  placeholder="Filter by Branch"
+                  allowClear
+                  style={{ width: '100%' }}
+                  value={reportBranch}
+                  onChange={(value) => {
+                    setReportBranch(value);
+                    generateReport();
+                  }}
+                >
+                  {branches?.map(branch => (
+                    <Option key={branch.id} value={branch.id}>{branch.name}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Date Range">
+                <RangePicker
+                  style={{ width: '100%' }}
+                  value={reportDateRange}
+                  onChange={(dates) => {
+                    setReportDateRange(dates);
+                    generateReport();
+                  }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        </div>
+
+        <Table
+          dataSource={reportData.filter(item => !item.isSummary)}
+          columns={[
+            {
+              title: 'Name',
+              dataIndex: 'name',
+              key: 'name',
+              ellipsis: true
+            },
+            {
+              title: 'Category',
+              dataIndex: 'category',
+              key: 'category',
+              ellipsis: true
+            },
+            {
+              title: 'Branch',
+              dataIndex: 'branch',
+              key: 'branch',
+              ellipsis: true
+            },
+            {
+              title: 'Stock',
+              dataIndex: 'currentQuantity',
+              key: 'currentQuantity',
+              render: (text, record) => (
+                <span style={{
+                  color: record.stockStatus === 'Out of Stock' ? 'red' :
+                    record.stockStatus === 'Low Stock' ? 'orange' : 'inherit'
+                }}>
+                  {text}
+                </span>
+              )
+            },
+            {
+              title: 'Value',
+              dataIndex: 'currentStockValue',
+              key: 'currentStockValue',
+              render: (value) => `KES ${value.toLocaleString()}`
+            },
+            {
+              title: 'Sales',
+              dataIndex: 'totalSales',
+              key: 'totalSales',
+              render: (value) => `KES ${value.toLocaleString()}`
+            },
+            {
+              title: 'Profit',
+              dataIndex: 'totalProfit',
+              key: 'totalProfit',
+              render: (value) => `KES ${value.toLocaleString()}`
+            }
+          ]}
+          size="small"
+          pagination={{ pageSize: 10 }}
+          scroll={{ x: 800 }}
+          summary={() => {
+            const summary = reportData.find(item => item.isSummary);
+            return summary ? (
+              <Table.Summary fixed>
+                <Table.Summary.Row>
+                  <Table.Summary.Cell index={0} colSpan={3}>
+                    <strong>Summary</strong>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={3}>
+                    <strong>{summary.totalItems}</strong>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={4}>
+                    <strong>KES {summary.totalStockValue.toLocaleString()}</strong>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={5}>
+                    <strong>KES {summary.totalSales.toLocaleString()}</strong>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={6}>
+                    <strong>KES {summary.totalProfit.toLocaleString()}</strong>
+                  </Table.Summary.Cell>
+                </Table.Summary.Row>
+              </Table.Summary>
+            ) : null;
+          }}
+        />
       </Modal>
     </PageLayout>
   )

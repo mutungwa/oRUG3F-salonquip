@@ -1,0 +1,30 @@
+import "./item.zmodel"
+import "./user.zmodel"
+
+model InventoryLog {
+    id          String    @id @default(uuid())
+    
+    // Action type: "create", "update", "delete"
+    action      String
+    
+    // Item information
+    itemId      String
+    item        Item?     @relation(fields: [itemId], references: [id])
+    itemName    String    // Store the name for reference even if item is deleted
+    
+    // User who made the change
+    userId      String?
+    user        User?     @relation(fields: [userId], references: [id])
+    userName    String?   // Store the name for reference
+    
+    // Details of the change
+    details     String    // JSON string containing the changes
+    
+    // Timestamps
+    dateCreated DateTime  @default(now())
+    dateUpdated DateTime  @updatedAt
+
+    @@allow('all', auth() == null || auth().roles?[name == 'admin'])
+    @@allow('read', true)
+    @@allow('create', true)
+}

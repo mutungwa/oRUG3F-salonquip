@@ -5,32 +5,32 @@ import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
 import { DownloadOutlined, PrinterOutlined, SearchOutlined } from '@ant-design/icons'
 import {
-  Button,
-  Card,
-  Col,
-  DatePicker,
-  Input,
-  Modal,
-  Row,
-  Space,
-  Statistic,
-  Table,
-  Tabs,
-  Tag,
-  Typography
+    Button,
+    Card,
+    Col,
+    DatePicker,
+    Input,
+    Modal,
+    Row,
+    Space,
+    Statistic,
+    Table,
+    Tabs,
+    Tag,
+    Typography
 } from 'antd'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useSnackbar } from 'notistack'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
 
 // Dynamically import the PDF components with no SSR
 const PDFReceipt = dynamic(() => import('@react-pdf/renderer').then(mod => {
   const { Document, Page, Text, View, StyleSheet } = mod;
-  
+
   const styles = StyleSheet.create({
     page: {
       padding: 20,
@@ -78,55 +78,55 @@ const PDFReceipt = dynamic(() => import('@react-pdf/renderer').then(mod => {
             <Text style={styles.title}>SALON QUIP</Text>
             <Text style={styles.subtitle}>Sales Receipt</Text>
           </View>
-          
+
           <View style={styles.divider} />
-          
+
           <View style={styles.row}>
             <Text style={styles.text}>Date:</Text>
             <Text style={styles.text}>{dayjs(sale.saleDate).format('YYYY-MM-DD HH:mm')}</Text>
           </View>
-          
+
           <View style={styles.row}>
             <Text style={styles.text}>Receipt #:</Text>
             <Text style={styles.text}>{sale.id}</Text>
           </View>
-          
+
           <View style={styles.divider} />
-          
+
           <View style={styles.row}>
             <Text style={styles.text}>Customer:</Text>
             <Text style={styles.text}>{customer?.name || 'Walk-in Customer'}</Text>
           </View>
-          
+
           {customer?.phoneNumber && (
             <View style={styles.row}>
               <Text style={styles.text}>Phone:</Text>
               <Text style={styles.text}>{customer.phoneNumber}</Text>
             </View>
           )}
-          
+
           <View style={styles.divider} />
-          
+
           <View style={styles.row}>
             <Text style={styles.text}>Item:</Text>
             <Text style={styles.text}>{item.name}</Text>
           </View>
-          
+
           <View style={styles.row}>
             <Text style={styles.text}>Quantity:</Text>
             <Text style={styles.text}>{sale.quantitySold}</Text>
           </View>
-          
+
           <View style={styles.row}>
             <Text style={styles.text}>Unit Price:</Text>
             <Text style={styles.text}>KES {sale.sellPrice.toLocaleString()}</Text>
           </View>
-          
+
           <View style={styles.row}>
             <Text style={styles.bold}>Total Amount:</Text>
             <Text style={styles.bold}>KES {(sale.sellPrice * sale.quantitySold).toLocaleString()}</Text>
           </View>
-          
+
           {customer && (
             <>
               <View style={styles.divider} />
@@ -144,9 +144,9 @@ const PDFReceipt = dynamic(() => import('@react-pdf/renderer').then(mod => {
               </View>
             </>
           )}
-          
+
           <View style={styles.divider} />
-          
+
           <View style={styles.footer}>
             <Text style={styles.text}>Thank you for your business!</Text>
           </View>
@@ -167,7 +167,7 @@ export default function StockManagementPage() {
   const router = useRouter()
   const { user, checkRole } = useUserContext()
   const isAdmin = checkRole('admin')
-  
+
   const [isExporting, setIsExporting] = useState(false)
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
   const [searchText, setSearchText] = useState('')
@@ -175,24 +175,60 @@ export default function StockManagementPage() {
   const [currentSale, setCurrentSale] = useState<any>(null)
   const [currentCustomer, setCurrentCustomer] = useState<any>(null)
   const [currentItem, setCurrentItem] = useState<any>(null)
+  const [isMobile, setIsMobile] = useState(false)
   const receiptRef = useRef()
 
+  // Handle window resize for responsive design
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    // Check on initial load
+    checkIfMobile();
+
+    // Add event listener for window resize
+    window.addEventListener('resize', checkIfMobile);
+
+    // Clean up
+    return () => window.removeEventListener('resize', checkIfMobile);
+  }, []);
+
   const {
-    data: itemsWithSales,
+    data: items,
     isLoading,
     refetch,
   } = Api.item.findMany.useQuery({
-    where: { sales: { some: {} } },
-    include: { sales: true },
+    include: { branch: true },
   })
 
   const { data: customers } = Api.customer.findMany.useQuery({});
-  const { data: sales } = Api.sale.findMany.useQuery({});
+  const { data: sales } = Api.sale.findMany.useQuery({
+    orderBy: { saleDate: 'desc' },
+    take: 200
+    // Note: saleItems relation will be available after migration
+  });
+
+  // Create a map of items with their associated sales
+  const itemsWithSalesData = useMemo(() => {
+    if (!items || !sales) return [];
+
+    // Create a map of items with their associated sales
+    return items.map(item => {
+      // Find all sales for this item
+      const itemSales = sales.filter(sale => sale.itemId === item.id);
+
+      return {
+        ...item,
+        sales: itemSales
+      };
+    }).filter(item => item.sales.length > 0); // Only include items with sales
+  }, [items, sales]);
 
   const filteredData = useMemo(() => {
-    if (!itemsWithSales) return [];
-    
-    let filtered = itemsWithSales;
+    if (!itemsWithSalesData) return [];
+
+    let filtered = itemsWithSalesData;
 
     // Date range filter
     if (dateRange && dateRange[0] && dateRange[1]) {
@@ -222,7 +258,7 @@ export default function StockManagementPage() {
           item.name.toLowerCase().includes(searchLower) ||
           item.sku.toLowerCase().includes(searchLower) ||
           (item.description && item.description.toLowerCase().includes(searchLower)) ||
-          item.sales.some(sale => 
+          item.sales.some(sale =>
             sale.branchName.toLowerCase().includes(searchLower)
           )
         );
@@ -230,7 +266,7 @@ export default function StockManagementPage() {
     }
 
     return filtered;
-  }, [itemsWithSales, dateRange, searchText]);
+  }, [itemsWithSalesData, dateRange, searchText]);
 
   const handleDateRangeChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
     setDateRange(dates);
@@ -278,7 +314,7 @@ export default function StockManagementPage() {
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      
+
       let filename = 'stock-report';
       if (dateRange && dateRange[0] && dateRange[1]) {
         filename += `-${dateRange[0].format('YYYY-MM-DD')}-to-${dateRange[1].format('YYYY-MM-DD')}`;
@@ -293,7 +329,7 @@ export default function StockManagementPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       setIsExporting(false);
       enqueueSnackbar('Report downloaded successfully', { variant: 'success' });
     } catch (error) {
@@ -308,7 +344,7 @@ export default function StockManagementPage() {
       dataIndex: 'name',
       key: 'name',
       filteredValue: searchText ? [searchText] : null,
-      onFilter: (value: string, record: any) => 
+      onFilter: (value: string, record: any) =>
         record.name.toLowerCase().includes(value.toLowerCase()),
     },
     {
@@ -324,7 +360,7 @@ export default function StockManagementPage() {
       title: 'Total Sold Quantity',
       dataIndex: 'sales',
       key: 'sales',
-      render: (sales: any[]) => 
+      render: (sales: any[]) =>
         sales.reduce((acc, sale) => acc + sale.quantitySold, 0).toString(),
     },
     {
@@ -360,7 +396,7 @@ export default function StockManagementPage() {
     totalProfit: item.sales.reduce((acc, sale) => acc + sale.profit, 0),
   }));
 
-  const branchPerformanceData = itemsWithSales?.reduce((acc, item) => {
+  const branchPerformanceData = itemsWithSalesData?.reduce((acc, item) => {
     item.sales.forEach(sale => {
       const branch = acc.find(b => b.branchName === sale.branchName);
       if (branch) {
@@ -389,16 +425,16 @@ export default function StockManagementPage() {
   // Calculate branch-wise profits
   const branchProfits = useMemo(() => {
     if (!filteredData) return [];
-    
+
     const branchProfitMap = new Map<string, number>();
-    
+
     filteredData.forEach(item => {
       item.sales.forEach(sale => {
         const currentProfit = branchProfitMap.get(sale.branchName) || 0;
         branchProfitMap.set(sale.branchName, currentProfit + sale.profit);
       });
     });
-    
+
     return Array.from(branchProfitMap.entries())
       .map(([branchName, profit]) => ({
         branchName,
@@ -408,7 +444,7 @@ export default function StockManagementPage() {
   }, [filteredData]);
 
   const handleViewReceipt = (sale: any) => {
-    const item = itemsWithSales?.find(i => i.id === sale.itemId);
+    const item = items?.find(i => i.id === sale.itemId);
     setCurrentSale(sale);
     setCurrentCustomer(customers?.find(c => c.id === sale.customerId) || null);
     setCurrentItem(item);
@@ -441,55 +477,55 @@ export default function StockManagementPage() {
                 <div class="title">SALON QUIP</div>
                 <div class="subtitle">Sales Receipt</div>
               </div>
-              
+
               <div class="divider"></div>
-              
+
               <div class="row">
                 <span class="text">Date:</span>
                 <span class="text">${dayjs(currentSale.saleDate).format('YYYY-MM-DD HH:mm')}</span>
               </div>
-              
+
               <div class="row">
                 <span class="text">Receipt #:</span>
                 <span class="text">${currentSale.id}</span>
               </div>
-              
+
               <div class="divider"></div>
-              
+
               <div class="row">
                 <span class="text">Customer:</span>
                 <span class="text">${currentCustomer?.name || 'Walk-in Customer'}</span>
               </div>
-              
+
               ${currentCustomer?.phoneNumber ? `
               <div class="row">
                 <span class="text">Phone:</span>
                 <span class="text">${currentCustomer.phoneNumber}</span>
               </div>
               ` : ''}
-              
+
               <div class="divider"></div>
-              
+
               <div class="row">
                 <span class="text">Item:</span>
                 <span class="text">${currentItem.name}</span>
               </div>
-              
+
               <div class="row">
                 <span class="text">Quantity:</span>
                 <span class="text">${currentSale.quantitySold}</span>
               </div>
-              
+
               <div class="row">
                 <span class="text">Unit Price:</span>
                 <span class="text">KES ${currentSale.sellPrice.toLocaleString()}</span>
               </div>
-              
+
               <div class="row">
                 <span class="text bold">Total Amount:</span>
                 <span class="text bold">KES ${(currentSale.sellPrice * currentSale.quantitySold).toLocaleString()}</span>
               </div>
-              
+
               ${currentCustomer ? `
               <div class="divider"></div>
               <div class="row">
@@ -505,9 +541,9 @@ export default function StockManagementPage() {
                 <span class="text bold">KES ${currentCustomer.loyaltyPoints.toFixed(2)}</span>
               </div>
               ` : ''}
-              
+
               <div class="divider"></div>
-              
+
               <div class="footer">
                 <span class="text">Thank you for your business!</span>
               </div>
@@ -528,56 +564,68 @@ export default function StockManagementPage() {
           <Card>
             <Tabs defaultActiveKey="1">
               <TabPane tab="Sales Trend" key="1">
-                <LineChart
-                  width={500}
-                  height={300}
-                  data={salesTrendData}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="totalSold" stroke="#8884d8" />
-                  <Line type="monotone" dataKey="totalProfit" stroke="#82ca9d" />
-                </LineChart>
+                <div style={{ width: '100%', overflowX: 'auto' }}>
+                  <LineChart
+                    width={isMobile ? window.innerWidth - 50 : 500}
+                    height={300}
+                    data={salesTrendData}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    style={{ minWidth: '300px' }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="totalSold" stroke="#8884d8" />
+                    <Line type="monotone" dataKey="totalProfit" stroke="#82ca9d" />
+                  </LineChart>
+                </div>
               </TabPane>
               <TabPane tab="Branch Performance" key="2">
-                <BarChart
-                  width={500}
-                  height={300}
-                  data={branchPerformanceData}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="branchName" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="totalSold" fill="#8884d8" />
-                  <Bar dataKey="totalProfit" fill="#82ca9d" />
-                </BarChart>
+                <div style={{ width: '100%', overflowX: 'auto' }}>
+                  <BarChart
+                    width={isMobile ? window.innerWidth - 50 : 500}
+                    height={300}
+                    data={branchPerformanceData}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    style={{ minWidth: '300px' }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="branchName" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="totalSold" fill="#8884d8" />
+                    <Bar dataKey="totalProfit" fill="#82ca9d" />
+                  </BarChart>
+                </div>
               </TabPane>
               <TabPane tab="Total Profit Summary" key="3">
-                <div style={{ 
-                  padding: '40px', 
+                <div style={{
+                  padding: isMobile ? '20px' : '40px',
                   textAlign: 'center',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '20px'
+                  gap: '20px',
+                  width: '100%',
+                  overflowX: 'hidden'
                 }}>
                   <Title level={3}>Overall Profit Summary</Title>
-                  
+
                   {/* Overall Total Profit Card */}
                   <Card style={{ width: '100%', marginBottom: '20px' }}>
                     <Statistic
-                      title={<Title level={4}>Total Profit (All Branches)</Title>}
+                      title={<Title level={4} style={{ fontSize: isMobile ? '18px' : '24px' }}>Total Profit (All Branches)</Title>}
                       value={totalProfit}
                       precision={2}
                       prefix="KES"
-                      valueStyle={{ color: '#3f8600', fontSize: '24px' }}
+                      valueStyle={{
+                        color: '#3f8600',
+                        fontSize: isMobile ? '20px' : '24px',
+                        wordBreak: 'break-word'
+                      }}
                     />
                     {dateRange && dateRange[0] && dateRange[1] && (
                       <Text type="secondary" style={{ marginTop: '10px', display: 'block' }}>
@@ -588,7 +636,7 @@ export default function StockManagementPage() {
 
                   {/* Branch-wise Profit Cards */}
                   <div style={{ width: '100%' }}>
-                    <Title level={4} style={{ marginBottom: '20px', textAlign: 'left' }}>
+                    <Title level={4} style={{ marginBottom: '20px', textAlign: 'left', fontSize: isMobile ? '16px' : '20px' }}>
                       Profit by Branch
                     </Title>
                     <Row gutter={[16, 16]}>
@@ -596,11 +644,15 @@ export default function StockManagementPage() {
                         <Col xs={24} sm={12} md={8} key={branch.branchName}>
                           <Card>
                             <Statistic
-                              title={branch.branchName}
+                              title={<div style={{ wordBreak: 'break-word' }}>{branch.branchName}</div>}
                               value={branch.profit}
                               precision={2}
                               prefix="KES"
-                              valueStyle={{ color: '#3f8600' }}
+                              valueStyle={{
+                                color: '#3f8600',
+                                fontSize: isMobile ? '16px' : '20px',
+                                wordBreak: 'break-word'
+                              }}
                             />
                           </Card>
                         </Col>
@@ -608,8 +660,8 @@ export default function StockManagementPage() {
                     </Row>
                   </div>
 
-                  <div style={{ marginTop: '20px' }}>
-                    <Text type="secondary">
+                  <div style={{ marginTop: '20px', width: '100%', padding: '0 10px' }}>
+                    <Text type="secondary" style={{ fontSize: isMobile ? '12px' : '14px' }}>
                       * This summary reflects the total profit from all sales
                       {searchText && ' (filtered by current search)'}
                     </Text>
@@ -617,63 +669,75 @@ export default function StockManagementPage() {
                 </div>
               </TabPane>
               <TabPane tab="Sales History" key="4">
-                <Table
-                  dataSource={[...(sales || [])].sort((a, b) => 
-                    new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()
-                  )}
-                  columns={[
-                    {
-                      title: 'Date',
-                      dataIndex: 'saleDate',
-                      key: 'saleDate',
-                      render: (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm'),
-                      sorter: (a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime(),
-                      defaultSortOrder: 'descend'
-                    },
-                    {
-                      title: 'Item',
-                      dataIndex: 'itemName',
-                      key: 'itemName'
-                    },
-                    {
-                      title: 'Customer',
-                      dataIndex: 'customerName',
-                      key: 'customerName',
-                      render: (text: string) => text || 'Walk-in Customer'
-                    },
-                    {
-                      title: 'Quantity',
-                      dataIndex: 'quantitySold',
-                      key: 'quantitySold'
-                    },
-                    {
-                      title: 'Price',
-                      dataIndex: 'sellPrice',
-                      key: 'sellPrice',
-                      render: (price: number) => `KES ${price.toLocaleString()}`
-                    },
-                    {
-                      title: 'Total',
-                      key: 'total',
-                      render: (_, record: any) => `KES ${(record.sellPrice * record.quantitySold).toLocaleString()}`
-                    },
-                    {
-                      title: 'Actions',
-                      key: 'actions',
-                      render: (_, record: any) => (
-                        <Button
-                          type="primary"
-                          icon={<PrinterOutlined />}
-                          onClick={() => handleViewReceipt(record)}
-                        >
-                          View Receipt
-                        </Button>
-                      )
-                    }
-                  ]}
-                  rowKey="id"
-                  pagination={{ pageSize: 10 }}
-                />
+                <div style={{ width: '100%', overflowX: 'auto' }}>
+                  <Table
+                    dataSource={[...(sales || [])].sort((a, b) =>
+                      new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()
+                    )}
+                    columns={[
+                      {
+                        title: 'Date',
+                        dataIndex: 'saleDate',
+                        key: 'saleDate',
+                        render: (date: string) => dayjs(date).format(isMobile ? 'YYYY-MM-DD' : 'YYYY-MM-DD HH:mm'),
+                        sorter: (a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime(),
+                        defaultSortOrder: 'descend'
+                      },
+                      {
+                        title: 'Item',
+                        dataIndex: 'itemName',
+                        key: 'itemName',
+                        ellipsis: isMobile
+                      },
+                      {
+                        title: 'Customer',
+                        dataIndex: 'customerName',
+                        key: 'customerName',
+                        render: (text: string) => text || 'Walk-in',
+                        ellipsis: isMobile,
+                        responsive: ['md']
+                      },
+                      {
+                        title: 'Qty',
+                        dataIndex: 'quantitySold',
+                        key: 'quantitySold'
+                      },
+                      {
+                        title: 'Price',
+                        dataIndex: 'sellPrice',
+                        key: 'sellPrice',
+                        render: (price: number) => `KES ${price.toLocaleString()}`,
+                        responsive: ['sm']
+                      },
+                      {
+                        title: 'Total',
+                        key: 'total',
+                        render: (_, record: any) => `KES ${(record.sellPrice * record.quantitySold).toLocaleString()}`
+                      },
+                      {
+                        title: 'Actions',
+                        key: 'actions',
+                        render: (_, record: any) => (
+                          <Button
+                            type="primary"
+                            icon={<PrinterOutlined />}
+                            onClick={() => handleViewReceipt(record)}
+                            size={isMobile ? 'small' : 'middle'}
+                          >
+                            {isMobile ? '' : 'View Receipt'}
+                          </Button>
+                        )
+                      }
+                    ]}
+                    rowKey="id"
+                    pagination={{
+                      pageSize: 10,
+                      size: isMobile ? 'small' : undefined
+                    }}
+                    scroll={{ x: isMobile ? 800 : undefined }}
+                    size={isMobile ? 'small' : 'middle'}
+                  />
+                </div>
               </TabPane>
             </Tabs>
           </Card>
@@ -689,28 +753,33 @@ export default function StockManagementPage() {
         <Col span={24}>
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Input
-              placeholder="Search by name, SKU, description, or branch name..."
+              placeholder={isMobile ? "Search..." : "Search by name, SKU, description, or branch name..."}
               prefix={<SearchOutlined />}
               onChange={handleSearch}
               value={searchText}
               allowClear
+              style={{ fontSize: isMobile ? '14px' : '16px' }}
             />
-            <RangePicker
-              onChange={handleDateRangeChange}
-              style={{ width: '100%' }}
-              format="DD-MM-YYYY"
-              value={dateRange}
-              allowClear
-            />
+            <div style={{ width: '100%', overflowX: 'auto' }}>
+              <RangePicker
+                onChange={handleDateRangeChange}
+                style={{ width: '100%' }}
+                format="DD-MM-YYYY"
+                value={dateRange}
+                allowClear
+
+              />
+            </div>
             {isAdmin && (
-              <Button 
+              <Button
                 type="primary"
                 onClick={downloadCSV}
                 icon={<DownloadOutlined />}
                 loading={isExporting}
                 disabled={!filteredData?.length || isExporting}
+                style={{ width: isMobile ? '100%' : 'auto' }}
               >
-                {isExporting ? 'Preparing Download...' : 'Download Report'}
+                {isExporting ? 'Preparing...' : isMobile ? 'Download' : 'Download Report'}
               </Button>
             )}
           </Space>
@@ -718,17 +787,23 @@ export default function StockManagementPage() {
       </Row>
       <Row justify="center">
         <Col span={24}>
-          <Table 
-            columns={columns} 
-            dataSource={filteredData} 
-            loading={isLoading} 
-            rowKey="id"
-            pagination={{ 
-              pageSize: 10,
-              showSizeChanger: true,
-              showTotal: (total) => `Total ${total} items`
-            }}
-          />
+          <div style={{ width: '100%', overflowX: 'auto' }}>
+            <Table
+              columns={columns}
+              dataSource={filteredData}
+              loading={isLoading}
+              rowKey="id"
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `Total ${total} items`,
+                responsive: true,
+                size: isMobile ? 'small' : undefined
+              }}
+              scroll={{ x: isMobile ? 800 : undefined }}
+              size={isMobile ? 'small' : 'middle'}
+            />
+          </div>
         </Col>
       </Row>
       <Modal
@@ -736,19 +811,34 @@ export default function StockManagementPage() {
         open={isReceiptModalVisible}
         onCancel={() => setIsReceiptModalVisible(false)}
         footer={[
-          <Button 
-            key="print" 
-            type="primary" 
-            icon={<PrinterOutlined />} 
+          <Button
+            key="print"
+            type="primary"
+            icon={<PrinterOutlined />}
             onClick={handlePrintReceipt}
+            size={isMobile ? 'small' : 'middle'}
           >
-            Print Receipt
+            {isMobile ? 'Print' : 'Print Receipt'}
           </Button>,
-          <Button key="close" onClick={() => setIsReceiptModalVisible(false)}>
+          <Button
+            key="close"
+            onClick={() => setIsReceiptModalVisible(false)}
+            size={isMobile ? 'small' : 'middle'}
+          >
             Close
           </Button>
         ]}
-        width={800}
+        width={isMobile ? '95%' : 800}
+        style={{
+          top: isMobile ? 20 : 100,
+          maxWidth: isMobile ? '95vw' : '800px'
+        }}
+        styles={{
+          body: {
+            maxHeight: isMobile ? '70vh' : '80vh',
+            overflowY: 'auto'
+          }
+        }}
       >
         <div ref={receiptRef}>
           {currentSale && (

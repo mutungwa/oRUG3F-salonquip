@@ -7,9 +7,11 @@ import createSessionRouter from "./Session.router";
 import createRoleRouter from "./Role.router";
 import createAdminRouter from "./Admin.router";
 import createSaleRouter from "./Sale.router";
-import createItemRouter from "./Item.router";
 import createBranchRouter from "./Branch.router";
+import createItemRouter from "./Item.router";
 import createStockTransferRouter from "./StockTransfer.router";
+import createInventoryLogRouter from "./InventoryLog.router";
+import createSaleItemRouter from "./SaleItem.router";
 import createCustomerRouter from "./Customer.router";
 import { ClientType as AccountClientType } from "./Account.router";
 import { ClientType as UserClientType } from "./User.router";
@@ -17,9 +19,11 @@ import { ClientType as SessionClientType } from "./Session.router";
 import { ClientType as RoleClientType } from "./Role.router";
 import { ClientType as AdminClientType } from "./Admin.router";
 import { ClientType as SaleClientType } from "./Sale.router";
-import { ClientType as ItemClientType } from "./Item.router";
 import { ClientType as BranchClientType } from "./Branch.router";
+import { ClientType as ItemClientType } from "./Item.router";
 import { ClientType as StockTransferClientType } from "./StockTransfer.router";
+import { ClientType as InventoryLogClientType } from "./InventoryLog.router";
+import { ClientType as SaleItemClientType } from "./SaleItem.router";
 import { ClientType as CustomerClientType } from "./Customer.router";
 
 export type BaseConfig = AnyRootConfig;
@@ -51,9 +55,11 @@ export function createRouter<Config extends BaseConfig>(router: RouterFactory<Co
         role: createRoleRouter(router, procedure),
         admin: createAdminRouter(router, procedure),
         sale: createSaleRouter(router, procedure),
-        item: createItemRouter(router, procedure),
         branch: createBranchRouter(router, procedure),
+        item: createItemRouter(router, procedure),
         stockTransfer: createStockTransferRouter(router, procedure),
+        inventoryLog: createInventoryLogRouter(router, procedure),
+        saleItem: createSaleItemRouter(router, procedure),
         customer: createCustomerRouter(router, procedure),
     }
     );
@@ -66,8 +72,10 @@ export interface ClientType<AppRouter extends AnyRouter> {
     role: RoleClientType<AppRouter>;
     admin: AdminClientType<AppRouter>;
     sale: SaleClientType<AppRouter>;
-    item: ItemClientType<AppRouter>;
     branch: BranchClientType<AppRouter>;
+    item: ItemClientType<AppRouter>;
     stockTransfer: StockTransferClientType<AppRouter>;
+    inventoryLog: InventoryLogClientType<AppRouter>;
+    saleItem: SaleItemClientType<AppRouter>;
     customer: CustomerClientType<AppRouter>;
 }

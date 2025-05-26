@@ -1,33 +1,57 @@
-import "./item.zmodel"
 import "./branch.zmodel"
 import "./user.zmodel"
 import "./customer.zmodel"
+import "./saleItem.zmodel"
 
 model Sale {
-    id            String    @id @default(cuid())
-    sellPrice     Float
-    quantitySold  Int
-    saleDate      DateTime  @default(now())
-    itemId        String
-    item          Item      @relation(fields: [itemId], references: [id], name: "item")
-    itemName      String
-    itemCategory  String
-    itemPrice     Float
-    branchId      String
-    branch        Branch    @relation(fields: [branchId], references: [id], name: "branch")
-    branchName    String
-    userId        String
-    user          User      @relation(fields: [userId], references: [id], name: "user")
-    userName      String
-    customerId    String?
-    customer      Customer? @relation(fields: [customerId], references: [id])
-    customerName  String?
-    customerPhone String?
-    profit        Float
-    loyaltyPointsEarned Float @default(0)
-    loyaltyPointsRedeemed Float @default(0) // Add this field
-    dateCreated   DateTime @default(now())
-    dateUpdated   DateTime @updatedAt
+    id                    String    @id @default(cuid())
+    saleDate              DateTime  @default(now())
+
+    // Sale totals
+    totalAmount           Float     // Total amount of the sale
+    totalProfit           Float     // Total profit from the sale
+
+    // Branch information
+    branchId              String
+    branch                Branch    @relation(fields: [branchId], references: [id], name: "branch")
+    branchName            String
+
+    // User information
+    userId                String
+    user                  User      @relation(fields: [userId], references: [id], name: "user")
+    userName              String
+
+    // Customer information
+    customerId            String?
+    customer              Customer? @relation(fields: [customerId], references: [id])
+    customerName          String?
+    customerPhone         String?
+
+    // Loyalty points
+    loyaltyPointsEarned   Float     @default(0)
+    loyaltyPointsRedeemed Float     @default(0)
+
+    // Payment information
+    paymentMethod         String    @default("cash") // cash, card, mobile, etc.
+    paymentReference      String?   // Reference number for the payment
+
+    // Timestamps
+    dateCreated           DateTime  @default(now())
+    dateUpdated           DateTime  @updatedAt
+
+    // Legacy fields for backward compatibility during migration
+    // These will be removed after migration is complete
+    itemId                String?
+    itemName              String?
+    itemCategory          String?
+    itemPrice             Float?
+    sellPrice             Float?
+    quantitySold          Int?
+    profit                Float?
+
+    // Relation to sale items
+    saleItems             SaleItem[]
+
     @@allow('all', auth() == null || auth().roles?[name == 'admin'])
     @@allow('read', true)
     @@allow('create', true)

@@ -37,21 +37,22 @@ model Account {
 /// @@allow('all', auth().roles?[name == 'admin'])
 /// @@allow('create', true)
 model User {
-  id               String    @id() @default(uuid())
+  id               String         @id() @default(uuid())
   name             String?
-  email            String?   @unique()
+  email            String?        @unique()
   pictureUrl       String?
   stripeCustomerId String?
   /// @password
   /// @omit
   password         String?
-  dateCreated      DateTime  @default(now())
-  dateUpdated      DateTime  @default(now()) @updatedAt()
+  dateCreated      DateTime       @default(now())
+  dateUpdated      DateTime       @default(now()) @updatedAt()
   accounts         Account[]
   sessions         Session[]
   roles            Role[]
-  admins           Admin[]   @relation("user")
-  sales            Sale[]    @relation("user")
+  admins           Admin[]        @relation("user")
+  sales            Sale[]         @relation("user")
+  inventoryLogs    InventoryLog[]
 }
 
 /// @@allow('all', auth().id == user.id)
@@ -88,30 +89,48 @@ model Admin {
 /// @@allow('create', true)
 /// @@allow('update', true)
 model Sale {
-  id                    String    @id() @default(cuid())
-  sellPrice             Float
-  quantitySold          Int
-  saleDate              DateTime  @default(now())
-  itemId                String
-  item                  Item      @relation(fields: [itemId], references: [id], name: "item")
-  itemName              String
-  itemCategory          String
-  itemPrice             Float
+  id                    String     @id() @default(cuid())
+  saleDate              DateTime   @default(now())
+  totalAmount           Float
+  totalProfit           Float
   branchId              String
-  branch                Branch    @relation(fields: [branchId], references: [id], name: "branch")
+  branch                Branch     @relation(fields: [branchId], references: [id], name: "branch")
   branchName            String
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], name: "user")
+  user                  User       @relation(fields: [userId], references: [id], name: "user")
   userName              String
   customerId            String?
-  customer              Customer? @relation(fields: [customerId], references: [id])
+  customer              Customer?  @relation(fields: [customerId], references: [id])
   customerName          String?
   customerPhone         String?
-  profit                Float
-  loyaltyPointsEarned   Float     @default(0)
-  loyaltyPointsRedeemed Float     @default(0)
-  dateCreated           DateTime  @default(now())
-  dateUpdated           DateTime  @updatedAt()
+  loyaltyPointsEarned   Float      @default(0)
+  loyaltyPointsRedeemed Float      @default(0)
+  paymentMethod         String     @default("cash")
+  paymentReference      String?
+  dateCreated           DateTime   @default(now())
+  dateUpdated           DateTime   @updatedAt()
+  itemId                String?
+  itemName              String?
+  itemCategory          String?
+  itemPrice             Float?
+  sellPrice             Float?
+  quantitySold          Int?
+  profit                Float?
+  saleItems             SaleItem[]
+}
+
+/// @@allow('all', true)
+model Branch {
+  id                         String          @id() @default(uuid())
+  name                       String
+  location                   String
+  phoneNumber                String
+  items                      Item[]          @relation("branch")
+  sales                      Sale[]          @relation("branch")
+  stockTransfersAsFromBranch StockTransfer[] @relation("fromBranch")
+  stockTransfersAsToBranch   StockTransfer[] @relation("toBranch")
+  dateCreated                DateTime        @default(now())
+  dateUpdated                DateTime        @default(now()) @updatedAt()
 }
 
 /// @@allow('read', true)
@@ -133,24 +152,11 @@ model Item {
   deleted           Boolean         @default(false)
   minimumStockLevel Float           @default(0)
   minimumSellPrice  Float           @default(0)
-  sales             Sale[]          @relation("item")
   stockTransfers    StockTransfer[] @relation("item")
+  inventoryLogs     InventoryLog[]
+  saleItems         SaleItem[]
   dateCreated       DateTime        @default(now())
-  dateUpdated       DateTime        @default(now()) @updatedAt()
-}
-
-/// @@allow('all', true)
-model Branch {
-  id                         String          @id() @default(uuid())
-  name                       String
-  location                   String
-  phoneNumber                String
-  items                      Item[]          @relation("branch")
-  sales                      Sale[]          @relation("branch")
-  stockTransfersAsFromBranch StockTransfer[] @relation("fromBranch")
-  stockTransfersAsToBranch   StockTransfer[] @relation("toBranch")
-  dateCreated                DateTime        @default(now())
-  dateUpdated                DateTime        @default(now()) @updatedAt()
+  dateUpdated       DateTime        @updatedAt()
 }
 
 /// @@allow('all', true)
@@ -166,6 +172,43 @@ model StockTransfer {
   toBranch     Branch?  @relation(fields: [toBranchId], references: [id], name: "toBranch")
   dateCreated  DateTime @default(now())
   dateUpdated  DateTime @default(now()) @updatedAt()
+}
+
+/// @@allow('all', auth() == null || auth().roles?[name == 'admin'])
+/// @@allow('read', true)
+/// @@allow('create', true)
+model InventoryLog {
+  id          String   @id() @default(uuid())
+  action      String
+  itemId      String
+  item        Item?    @relation(fields: [itemId], references: [id])
+  itemName    String
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  userName    String?
+  details     String
+  dateCreated DateTime @default(now())
+  dateUpdated DateTime @updatedAt()
+}
+
+/// @@allow('all', auth() == null || auth().roles?[name == 'admin'])
+/// @@allow('read', true)
+/// @@allow('create', true)
+/// @@allow('update', true)
+model SaleItem {
+  id           String   @id() @default(cuid())
+  saleId       String
+  sale         Sale     @relation(fields: [saleId], references: [id])
+  itemId       String
+  item         Item?    @relation(fields: [itemId], references: [id])
+  itemName     String
+  itemCategory String
+  itemPrice    Float
+  sellPrice    Float
+  quantitySold Int
+  profit       Float
+  dateCreated  DateTime @default(now())
+  dateUpdated  DateTime @updatedAt()
 }
 
 /// @@allow('all', auth() == null || auth().roles?[name == 'admin'])

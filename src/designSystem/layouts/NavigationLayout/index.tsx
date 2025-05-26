@@ -1,11 +1,11 @@
 'use client'
 
 import { useUserContext } from '@/core/context'
-import { useRouter } from 'next/navigation'
 import { useDesignSystem } from '@/designSystem/provider'
+import { useRouter } from 'next/navigation'
 import { Leftbar } from './components/Leftbar'
-import { Topbar } from './components/Topbar/index.layout'
 import { Logo } from './components/Logo'
+import { Topbar } from './components/Topbar/index.layout'
 
 interface Props {
   children: React.ReactNode
@@ -29,6 +29,11 @@ export const NavigationLayout: React.FC<Props> = ({ children }) => {
       key: '/items-management',
       label: 'Items Management',
       onClick: () => goTo('/items-management'),
+    },
+    {
+      key: '/inventory-log',
+      label: 'Inventory Log',
+      onClick: () => goTo('/inventory-log'),
     },
     {
       key: '/stock-management',

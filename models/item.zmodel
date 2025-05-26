@@ -1,31 +1,35 @@
-import "./branch.zmodel"  
-import "./sale.zmodel"  
-import "./stockTransfer.zmodel"  
+import "./branch.zmodel"
+import "./stockTransfer.zmodel"
+import "./inventoryLog.zmodel"
+import "./saleItem.zmodel"
 
 model Item {
+    id                String          @id @default(uuid())
+    name              String
+    description       String?
+    category          String
+    price             Float
+    sku               String
+    quantity          Float
+    origin            String
+    imageUrl          String?
+    branchId          String
+    branch            Branch?         @relation(fields: [branchId], references: [id], name:"branch")
+    deleted           Boolean         @default(false)
+    minimumStockLevel Float           @default(0)
+    minimumSellPrice  Float           @default(0)
 
-    id        String    @id @default(uuid())  
-    name      String      
-    description String?      
-    category  String      
-    price     Float       
-    sku       String      
-    quantity  Float       
-    origin    String      
-    imageUrl  String?      
-    branchId  String      
-    branch    Branch?    @relation(fields: [branchId], references: [id], name:"branch")  
-    deleted   Boolean      @default(false)
-    minimumStockLevel Float @default(0)
-    minimumSellPrice Float @default(0)
+    // Relations
+    stockTransfers    StockTransfer[] @relation("item")
+    inventoryLogs     InventoryLog[]
+    saleItems         SaleItem[]
 
-sales     Sale[]    @relation("item")  
-    stockTransfers StockTransfer[] @relation("item")  
-      dateCreated DateTime @default(now())
-      dateUpdated DateTime @updatedAt  @default(now())
-      
-      @@allow("read", true)
-      @@allow("create", auth().roles?[name == 'admin'])
-      @@allow("update", auth().roles?[name == 'admin'] || (auth() != null && future().quantity < this.quantity))
-      @@allow("delete", auth().roles?[name == 'admin'])
+    // Timestamps
+    dateCreated       DateTime        @default(now())
+    dateUpdated       DateTime        @updatedAt
+
+    @@allow("read", true)
+    @@allow("create", auth().roles?[name == 'admin'])
+    @@allow("update", auth().roles?[name == 'admin'] || (auth() != null && future().quantity < this.quantity))
+    @@allow("delete", auth().roles?[name == 'admin'])
 }

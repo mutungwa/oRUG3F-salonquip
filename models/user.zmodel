@@ -4,6 +4,7 @@ import "./role.zmodel";
 
 import './admin.zmodel'
 import './sale.zmodel'
+import './inventoryLog.zmodel'
 
 model User {
     id               String    @id @default(uuid())
@@ -19,6 +20,7 @@ model User {
     roles            Role[]
     admins           Admin[]   @relation("user")
     sales            Sale[]    @relation("user")
+    inventoryLogs    InventoryLog[]
 
 @@auth()
     @@allow("all", auth().id == this.id)

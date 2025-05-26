@@ -1,0 +1,23 @@
+import "./sale.zmodel"
+import "./item.zmodel"
+
+model SaleItem {
+    id                    String    @id @default(cuid())
+    saleId                String
+    sale                  Sale      @relation(fields: [saleId], references: [id])
+    itemId                String
+    item                  Item?     @relation(fields: [itemId], references: [id])
+    itemName              String
+    itemCategory          String
+    itemPrice             Float     // Original price of the item
+    sellPrice             Float     // Price this item was sold at
+    quantitySold          Int
+    profit                Float     // Profit for this specific item
+    dateCreated           DateTime  @default(now())
+    dateUpdated           DateTime  @updatedAt
+
+    @@allow('all', auth() == null || auth().roles?[name == 'admin'])
+    @@allow('read', true)
+    @@allow('create', true)
+    @@allow('update', true)
+}

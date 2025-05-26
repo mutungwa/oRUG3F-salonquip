@@ -4,17 +4,17 @@ import "./user.zmodel";
 import "./role.zmodel";
 import "./session.zmodel";
 
-import "./admin.zmodel"; 
-
-import "./branch.zmodel"; 
-
-import "./item.zmodel"; 
-
-import "./sale.zmodel"; 
-
-import "./stockTransfer.zmodel"; 
-
+import "./admin.zmodel";
+import "./branch.zmodel";
 import "./customer.zmodel";
+
+// Import models in the correct order to avoid circular references
+import "./item.zmodel";
+import "./sale.zmodel";
+import "./saleItem.zmodel";
+
+import "./stockTransfer.zmodel";
+import "./inventoryLog.zmodel";
 
 generator client {
     provider = "prisma-client-js"
