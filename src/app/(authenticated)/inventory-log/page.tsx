@@ -4,7 +4,6 @@ import { useUserContext } from '@/core/context';
 import { Api } from '@/core/trpc';
 import { PageLayout } from '@/designSystem/layouts/Page.layout';
 import {
-    CalendarOutlined,
     FileSearchOutlined,
     ReloadOutlined,
     SearchOutlined
@@ -379,7 +378,6 @@ export default function InventoryLogPage() {
               onChange={handleDateRangeChange}
               value={dateRange}
               placeholder={['Start Date', 'End Date']}
-              prefix={<CalendarOutlined />}
             />
           </Col>
           <Col xs={12} md={4}>

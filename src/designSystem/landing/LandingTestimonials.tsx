@@ -58,7 +58,7 @@ const TestimonialCard = ({
       <blockquote className="rounded-lg bg-gray-50 dark:bg-slate-800 p-6 shadow-sm sm:p-8">
         <div className="flex items-center gap-4">
           <img
-            alt=""
+            alt={`${name} avatar`}
             src={avatar}
             className="size-14 rounded-full object-cover"
           />

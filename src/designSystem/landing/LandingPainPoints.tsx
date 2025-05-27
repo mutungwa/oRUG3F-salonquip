@@ -44,7 +44,7 @@ export const LandingPainPoints: React.FC<Props> = ({
                 </span>
               </div>
               {idx < painPoints.length - 1 && (
-                <img src={RightArrow.src} width="50" className="dark:invert" />
+                <img src={RightArrow.src} width="50" className="dark:invert" alt="Arrow pointing right" />
               )}
             </>
           ))}

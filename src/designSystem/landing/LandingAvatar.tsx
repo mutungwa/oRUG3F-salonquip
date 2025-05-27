@@ -19,6 +19,7 @@ export const LandingAvatar = ({
   return (
     <img
       src={src}
+      alt=""
       width={width}
       height={height}
       className={clsx(

@@ -1,18 +1,25 @@
 import {
     DeleteOutlined,
+    DollarOutlined,
+    InfoCircleOutlined,
     MinusOutlined,
     PlusOutlined,
-    ShoppingCartOutlined
+    ShoppingCartOutlined,
+    TagOutlined
 } from '@ant-design/icons';
 import {
     Badge,
     Button,
+    Card,
     Divider,
     Empty,
     InputNumber,
+    notification,
     Popover,
     Space,
     Table,
+    Tag,
+    Tooltip,
     Typography
 } from 'antd';
 import React, { useEffect, useState } from 'react';
@@ -125,7 +132,7 @@ const ShoppingCart: React.FC<ShoppingCartProps> = ({
               }
             }}
             formatter={(value) => `KES ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-            parser={(value) => value!.replace(/KES\s?|(,*)/g, '')}
+            parser={(value) => parseFloat(value!.replace(/KES\s?|(,*)/g, '')) || 0}
             style={{ width: '120px' }}
           />
           <div style={{ marginTop: 4 }}>
