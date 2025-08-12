@@ -3,7 +3,7 @@
 import { useUserContext } from '@/core/context'
 import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
-import { DeleteOutlined, DollarOutlined, DownloadOutlined, EditOutlined, GiftOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons'
+import { DeleteOutlined, DollarOutlined, DownloadOutlined, EditOutlined, GiftOutlined, MailOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons'
 import {
     Alert,
     Button,
@@ -48,6 +48,9 @@ export default function AdminManagementPage() {
   const [isEditPointsModalVisible, setIsEditPointsModalVisible] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [isInviteModalVisible, setIsInviteModalVisible] = useState(false);
+  const [inviteForm] = Form.useForm();
+  const [isInviting, setIsInviting] = useState(false);
 
   // Handle window resize for responsive design
   useEffect(() => {
@@ -370,6 +373,46 @@ export default function AdminManagementPage() {
     }
   }
 
+  // Handle admin invitation
+  const handleInviteAdmin = async (values: any) => {
+    try {
+      setIsInviting(true);
+      
+      const response = await fetch('/api/invite-admin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: values.email,
+          inviterName: user?.name || user?.email || 'Admin',
+          inviterUserId: user?.id,
+          companyName: 'SalonQuip POS',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        enqueueSnackbar('Admin invitation sent successfully!', { variant: 'success' });
+        setIsInviteModalVisible(false);
+        inviteForm.resetFields();
+      } else {
+        throw new Error(data.error || 'Failed to send invitation');
+      }
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      enqueueSnackbar(error.message || 'Failed to send invitation', { variant: 'error' });
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const showInviteModal = () => {
+    setIsInviteModalVisible(true);
+    inviteForm.resetFields();
+  };
+
   return (
     <PageLayout layout="full-width">
       <Title level={2}>Admin Management</Title>
@@ -388,14 +431,23 @@ export default function AdminManagementPage() {
               label: <span><UserOutlined /> Users</span>,
               children: (
                 <>
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => showModal()}
-                    style={{ margin: '20px 0' }}
-                  >
-                    Add User
-                  </Button>
+                  <div style={{ display: 'flex', gap: '10px', margin: '20px 0', flexDirection: isMobile ? 'column' : 'row' }}>
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={() => showModal()}
+                    >
+                      Add User
+                    </Button>
+                    <Button
+                      type="default"
+                      icon={<MailOutlined />}
+                      onClick={showInviteModal}
+                      style={{ backgroundColor: '#722ed1', borderColor: '#722ed1', color: 'white' }}
+                    >
+                      Invite Admin
+                    </Button>
+                  </div>
                   <div style={{ width: '100%', overflowX: 'auto' }}>
                     <Table
                       dataSource={users}
@@ -824,6 +876,93 @@ export default function AdminManagementPage() {
             <Button type="primary" htmlType="submit">
               Save
             </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Admin Invitation Modal */}
+      <Modal
+        title="Invite Admin"
+        open={isInviteModalVisible}
+        onCancel={() => {
+          setIsInviteModalVisible(false);
+          inviteForm.resetFields();
+        }}
+        footer={null}
+        width={isMobile ? '95%' : 520}
+        style={{
+          top: isMobile ? 20 : 100,
+          maxWidth: isMobile ? '95vw' : '520px'
+        }}
+        styles={{
+          body: {
+            maxHeight: isMobile ? '70vh' : '80vh',
+            overflowY: 'auto'
+          }
+        }}
+      >
+        <Form
+          form={inviteForm}
+          onFinish={handleInviteAdmin}
+          layout="vertical"
+        >
+          <Alert
+            message="Admin Invitation"
+            description="Send an email invitation to a new admin. They will receive a secure link to register their account with admin privileges."
+            type="info"
+            showIcon
+            style={{ marginBottom: '20px' }}
+          />
+          
+          <Form.Item
+            name="email"
+            label="Email Address"
+            rules={[
+              { required: true, message: 'Please input the email address!' },
+              { type: 'email', message: 'Please enter a valid email address!' }
+            ]}
+          >
+            <Input
+              placeholder="Enter the admin's email address"
+              disabled={isInviting}
+            />
+          </Form.Item>
+
+          <Alert
+            message="Important Information"
+            description={
+              <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                <li>The invitation link will expire in 7 days</li>
+                <li>Make sure Gmail is configured in your environment variables</li>
+                <li>The invitee will be able to create an admin account</li>
+                <li>You can track invitation status in the users table</li>
+              </ul>
+            }
+            type="warning"
+            showIcon
+            style={{ marginBottom: '20px' }}
+          />
+
+          <Form.Item>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <Button 
+                onClick={() => {
+                  setIsInviteModalVisible(false);
+                  inviteForm.resetFields();
+                }}
+                disabled={isInviting}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="primary" 
+                htmlType="submit"
+                loading={isInviting}
+                icon={<MailOutlined />}
+              >
+                {isInviting ? 'Sending...' : 'Send Invitation'}
+              </Button>
+            </div>
           </Form.Item>
         </Form>
       </Modal>

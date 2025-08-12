@@ -2,7 +2,16 @@
 
 import { useUserContext } from '@/core/context'
 import { useDesignSystem } from '@/designSystem/provider'
+import {
+    AppstoreOutlined,
+    FileTextOutlined,
+    HomeOutlined,
+    ShopOutlined,
+    ShoppingCartOutlined,
+    UserOutlined
+} from '@ant-design/icons'
 import { useRouter } from 'next/navigation'
+import React from 'react'
 import { Leftbar } from './components/Leftbar'
 import { Logo } from './components/Logo'
 import { Topbar } from './components/Topbar/index.layout'
@@ -17,32 +26,38 @@ export const NavigationLayout: React.FC<Props> = ({ children }) => {
   const router = useRouter()
   const goTo = (path: string) => router.push(path)
   const { isMobile } = useDesignSystem()
+  const [collapsed, setCollapsed] = React.useState(false);
 
   // Base navigation items for all users
   let itemsLeftbar = [
     {
       key: '/home',
       label: 'Home',
+      icon: <HomeOutlined />,
       onClick: () => goTo('/home'),
     },
     {
       key: '/items-management',
       label: 'Items Management',
+      icon: <AppstoreOutlined />,
       onClick: () => goTo('/items-management'),
     },
     {
       key: '/inventory-log',
       label: 'Inventory Log',
+      icon: <FileTextOutlined />,
       onClick: () => goTo('/inventory-log'),
     },
     {
       key: '/stock-management',
       label: 'Sales Management',
+      icon: <ShoppingCartOutlined />,
       onClick: () => goTo('/stock-management'),
     },
     {
       key: '/branch-management',
       label: 'Branch Management',
+      icon: <ShopOutlined />,
       onClick: () => goTo('/branch-management'),
     },
   ]
@@ -52,6 +67,7 @@ export const NavigationLayout: React.FC<Props> = ({ children }) => {
     itemsLeftbar.push({
       key: '/admin-management',
       label: 'Admin Management',
+      icon: <UserOutlined />,
       onClick: () => goTo('/admin-management'),
     })
   }
@@ -63,6 +79,7 @@ export const NavigationLayout: React.FC<Props> = ({ children }) => {
   ]
 
   const isLeftbar = itemsLeftbar.length > 0 && !isMobile
+  const sidebarWidth = collapsed ? 80 : 250;
 
   return (
     <div
@@ -83,7 +100,12 @@ export const NavigationLayout: React.FC<Props> = ({ children }) => {
           height: '100vh',
           zIndex: 1000,
         }}>
-          <Leftbar items={itemsLeftbar} logo={<Logo className="m-2" />} />
+          <Leftbar
+            items={itemsLeftbar}
+            logo={<Logo height="40" className="m-2" />}
+            collapsed={collapsed}
+            setCollapsed={setCollapsed}
+          />
         </div>
       )}
       <div
@@ -93,22 +115,26 @@ export const NavigationLayout: React.FC<Props> = ({ children }) => {
           width: '100%',
           height: '100%',
           minHeight: '100vh',
-          marginLeft: isLeftbar ? '250px' : '0',
+          marginLeft: isLeftbar ? `${sidebarWidth}px` : '0',
+          transition: 'margin-left 0.2s',
         }}
       >
         <div style={{
           position: 'fixed',
           top: 0,
           right: 0,
-          width: isLeftbar ? 'calc(100% - 250px)' : '100%',
+          width: isLeftbar ? `calc(100% - ${sidebarWidth}px)` : '100%',
           zIndex: 1000,
+          transition: 'width 0.2s',
         }}>
           <Topbar
-            logo={!isLeftbar && <Logo className="m-2" />}
+            logo={!isLeftbar && <Logo height="40" className="m-2" />}
             itemsMobile={itemsMobile}
             isMobile={isMobile}
             isLoggedIn={authenticationStatus === 'authenticated'}
             items={itemsTopbar}
+            collapsed={collapsed}
+            setCollapsed={setCollapsed}
           />
         </div>
         <div

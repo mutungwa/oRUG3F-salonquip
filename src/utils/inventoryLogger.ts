@@ -1,4 +1,4 @@
-type LogAction = 'create' | 'update' | 'delete';
+type LogAction = 'create' | 'update' | 'delete' | 'sale';
 
 interface LogItemChange {
   action: LogAction;
@@ -10,8 +10,8 @@ interface LogItemChange {
 }
 
 /**
- * Logs an inventory change to the database
- * This function should be called with a mutation function from the component
+ * Simplified inventory logging utility
+ * Logs important inventory changes with essential information only
  */
 export const logItemChange = async ({
   action,
@@ -22,9 +22,12 @@ export const logItemChange = async ({
   details
 }: LogItemChange, createInventoryLogMutation?: any) => {
   try {
-    console.log('Logging inventory change:', { action, itemId, itemName, userId, userName });
+    // Skip logging for non-critical actions in development
+    if (process.env.NODE_ENV === 'development' && action === 'update' && !details.significant) {
+      return true;
+    }
 
-    // Prepare the data
+    // Prepare simplified log data
     const logData = {
       data: {
         action,
@@ -32,20 +35,20 @@ export const logItemChange = async ({
         itemName,
         userId,
         userName,
-        details: JSON.stringify(details)
+        details: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          ...details
+        })
       }
     };
 
-    // If mutation function is provided, use it; otherwise make a direct API call
+    // Use mutation if provided, otherwise fall back to API
     if (createInventoryLogMutation) {
       await createInventoryLogMutation(logData);
     } else {
-      // Fallback to direct API call
       const response = await fetch('/api/inventoryLog', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(logData.data),
       });
 
@@ -54,11 +57,29 @@ export const logItemChange = async ({
       }
     }
 
-    console.log(`Inventory log created: ${action} for item ${itemName}`);
     return true;
   } catch (error) {
-    console.error('Failed to create inventory log:', error);
-    console.error('Error details:', error?.message, error?.stack);
+    // Log error but don't fail the main operation
+    console.warn('Inventory logging failed (non-critical):', error);
     return false;
   }
+};
+
+/**
+ * Batch log multiple inventory changes
+ */
+export const batchLogChanges = async (
+  changes: LogItemChange[],
+  createInventoryLogMutation?: any
+) => {
+  const results = await Promise.allSettled(
+    changes.map(change => logItemChange(change, createInventoryLogMutation))
+  );
+  
+  const failed = results.filter(result => result.status === 'rejected').length;
+  if (failed > 0) {
+    console.warn(`${failed} out of ${changes.length} inventory logs failed`);
+  }
+  
+  return results;
 };

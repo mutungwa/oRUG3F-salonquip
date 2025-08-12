@@ -7,6 +7,7 @@ import "./session.zmodel";
 import "./admin.zmodel";
 import "./branch.zmodel";
 import "./customer.zmodel";
+import "./invitation.zmodel";
 
 // Import models in the correct order to avoid circular references
 import "./item.zmodel";

@@ -16,7 +16,7 @@ export const AppHeader: React.FC<Props> = ({
   return (
     <>
       <Flex justify="center">
-        <Logo height="100" />
+        <Logo height="60" />
       </Flex>
 
       <Flex vertical align="center">

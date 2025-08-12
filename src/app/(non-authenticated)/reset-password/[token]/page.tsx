@@ -4,23 +4,51 @@ import { AppHeader } from '@/designSystem/ui/AppHeader'
 import { Alert, Button, Flex, Form, Input, Typography } from 'antd'
 import { useParams, useRouter } from 'next/navigation'
 import { useSnackbar } from 'notistack'
+import { useState } from 'react'
 
 const { Text } = Typography
 
 export default function ResetPasswordTokenPage() {
   const router = useRouter()
-
   const { enqueueSnackbar } = useSnackbar()
-
   const { token } = useParams<{ token: string }>()
-
   const [form] = Form.useForm()
+  const [passwordStrength, setPasswordStrength] = useState(0)
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+  })
 
   const {
     mutateAsync: resetPassword,
     isLoading,
     isSuccess,
   } = Api.authentication.resetPassword.useMutation()
+
+  const checkPasswordStrength = (password: string) => {
+    const requirements = {
+      length: password.length >= 6,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /[0-9]/.test(password),
+    }
+    
+    setPasswordRequirements(requirements)
+    
+    // Calculate strength percentage
+    const strength = Object.values(requirements).filter(Boolean).length * 25
+    setPasswordStrength(strength)
+    
+    return requirements
+  }
+
+  const getStrengthColor = (strength: number) => {
+    if (strength < 50) return '#ff4d4f' // Red
+    if (strength < 75) return '#faad14' // Yellow
+    return '#52c41a' // Green
+  }
 
   const handleSubmit = async (values: any) => {
     try {
@@ -81,6 +109,14 @@ export default function ResetPasswordTokenPage() {
                     required: true,
                     message: 'Password confirmation is required',
                   },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue('password') === value) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(new Error('Passwords do not match!'));
+                    },
+                  }),
                 ]}
               >
                 <Input.Password

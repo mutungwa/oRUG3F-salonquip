@@ -1,0 +1,28 @@
+import "./user.zmodel"
+
+model Invitation {
+    id            String    @id @default(uuid())
+    
+    // Invitation details
+    email         String
+    token         String    @unique
+    inviterUserId String
+    inviter       User      @relation("inviter", fields: [inviterUserId], references: [id])
+    
+    // Status tracking
+    status        String    @default("pending") // pending, accepted, expired
+    expiresAt     DateTime
+    acceptedAt    DateTime?
+    
+    // Metadata
+    inviterName   String
+    companyName   String    @default("SalonQuip")
+    
+    // Timestamps
+    dateCreated   DateTime  @default(now())
+    dateUpdated   DateTime  @updatedAt
+
+    @@allow('all', auth() != null && auth().roles?[name == 'admin'])
+    @@allow('read', true) // Allow reading for invitation validation
+    @@allow('create', true) // Allow creating for invitation acceptance
+}

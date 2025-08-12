@@ -13,6 +13,15 @@
 /prisma/db.sqlite-journal
 db.sqlite
 
+# Database backups and SQL files
+*.sql
+*.dump
+*.backup
+*_backup_*
+backup_*
+salonquip_*_backup_*.sql
+pg_dump_*
+
 # next.js
 /.next/
 /out/

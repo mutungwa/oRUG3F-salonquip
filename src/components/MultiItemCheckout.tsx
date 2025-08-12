@@ -1,40 +1,34 @@
+import { CartItem, Customer } from '@/types/common';
 import {
-  CreditCardOutlined,
-  DollarOutlined,
-  PhoneOutlined,
-  TagOutlined,
-  UserOutlined
+    CreditCardOutlined,
+    DeleteOutlined,
+    DollarOutlined,
+    PhoneOutlined,
+    TagOutlined,
+    UserOutlined
 } from '@ant-design/icons';
 import {
-  Alert,
-  Button,
-  Card,
-  Divider,
-  Form,
-  Input,
-  InputNumber,
-  notification,
-  Radio,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Tooltip,
-  Typography
+    Alert,
+    Button,
+    Card,
+    Checkbox,
+    Divider,
+    Form,
+    Input,
+    InputNumber,
+    notification,
+    Radio,
+    Select,
+    Space,
+    Table,
+    Tag,
+    Tooltip,
+    Typography
 } from 'antd';
 import React, { useEffect, useState } from 'react';
-import { CartItem } from './ShoppingCart';
 
 const { Text } = Typography;
 const { Option } = Select;
-
-interface Customer {
-  id: string;
-  name: string;
-  phoneNumber: string;
-  loyaltyPoints: number;
-  referredBy?: string;
-}
 
 interface MultiItemCheckoutProps {
   cartItems: CartItem[];
@@ -45,6 +39,8 @@ interface MultiItemCheckoutProps {
   isNewCustomer: boolean;
   currentCustomer: Customer | null;
   onUpdateCartItemSellPrice?: (itemId: string, sellPrice: number) => void;
+  onUpdateCartItemQuantity?: (itemId: string, quantity: number) => void;
+  onRemoveItem?: (itemId: string) => void;
 }
 
 const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
@@ -55,7 +51,9 @@ const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
   onCancel,
   isNewCustomer,
   currentCustomer,
-  onUpdateCartItemSellPrice
+  onUpdateCartItemSellPrice,
+  onUpdateCartItemQuantity,
+  onRemoveItem
 }) => {
   const [form] = Form.useForm();
   const [totalAmount, setTotalAmount] = useState(0);
@@ -122,6 +120,46 @@ const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
       title: 'Qty',
       dataIndex: 'quantity',
       key: 'quantity',
+      width: 120,
+      render: (_: number, record: CartItem) => (
+        <div>
+          <InputNumber
+            min={1}
+            max={record.stock}
+            value={record.quantity}
+            onChange={(value) => {
+              if (value && onUpdateCartItemQuantity) {
+                if (value > record.stock) {
+                  notification.warning({
+                    message: 'Insufficient Stock',
+                    description: `Only ${record.stock} units available for ${record.name}`,
+                    placement: 'bottomRight'
+                  });
+                  onUpdateCartItemQuantity(record.id, record.stock);
+                } else {
+                  onUpdateCartItemQuantity(record.id, value as number);
+                }
+              }
+            }}
+            onKeyDown={(e) => {
+              // Prevent all keyboard input except arrow keys and tab
+              if (!['ArrowUp', 'ArrowDown', 'Tab'].includes(e.key)) {
+                e.preventDefault();
+              }
+            }}
+            controls={true}
+            size="small"
+            style={{ width: '80px' }}
+          />
+          <div style={{ marginTop: 4 }}>
+            <Tooltip title="Available stock">
+              <Tag color="blue" style={{ fontSize: '10px' }}>
+                Stock: {record.stock}
+              </Tag>
+            </Tooltip>
+          </div>
+        </div>
+      ),
     },
     {
       title: 'Price',
@@ -172,6 +210,22 @@ const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
             </Tooltip>
           </div>
         </div>
+      ),
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      width: 80,
+      render: (_: any, record: CartItem) => (
+        <Button
+          type="primary"
+          danger
+          icon={<DeleteOutlined />}
+          size="small"
+          onClick={() => onRemoveItem && onRemoveItem(record.id)}
+          disabled={!onRemoveItem}
+          title="Remove item from cart"
+        />
       ),
     },
   ];
@@ -351,6 +405,18 @@ const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
           <Text strong>Final Amount:</Text>
           <Text strong>{`KES ${finalAmount.toLocaleString()}`}</Text>
         </div>
+      </Card>
+
+      <Card title="Receipt Options" style={{ marginBottom: '20px' }}>
+        <Form.Item
+          name="printReceipt"
+          valuePropName="checked"
+          initialValue={true}
+        >
+          <Checkbox>
+            Print receipt for customer
+          </Checkbox>
+        </Form.Item>
       </Card>
 
       <Form.Item>

@@ -14,6 +14,8 @@ interface Props {
   logo?: ReactNode
   items: { key: string; label: string; onClick: () => void }[]
   itemsMobile: { key: string; label: string; onClick: () => void }[]
+  collapsed?: boolean
+  setCollapsed?: (collapsed: boolean) => void
 }
 
 export const Topbar: React.FC<Props> = ({
@@ -22,6 +24,8 @@ export const Topbar: React.FC<Props> = ({
   logo,
   items,
   itemsMobile,
+  collapsed,
+  setCollapsed,
 }) => {
   const pathname = usePathname()
 
@@ -61,6 +65,15 @@ export const Topbar: React.FC<Props> = ({
     <>
       <Header style={style}>
         <Flex align="center" style={style}>
+          {/* Hamburger button for toggling sidebar */}
+          {typeof collapsed === 'boolean' && setCollapsed && (
+            <span
+              style={{ marginRight: 16, cursor: 'pointer', fontSize: 20 }}
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              <MenuOutlined />
+            </span>
+          )}
           {logo}
 
           <Flex vertical flex={1}>

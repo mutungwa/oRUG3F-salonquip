@@ -6,6 +6,3 @@
 */
 -- AlterTable
 ALTER TABLE "Item" ADD COLUMN     "deleted" BOOLEAN NOT NULL DEFAULT false;
-
--- AlterTable
-ALTER TABLE "Sale" ADD COLUMN     "profit" DOUBLE PRECISION NOT NULL;

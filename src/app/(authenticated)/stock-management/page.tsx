@@ -3,14 +3,13 @@
 import { useUserContext } from '@/core/context'
 import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
-import { DownloadOutlined, PrinterOutlined, SearchOutlined } from '@ant-design/icons'
+import { DownloadOutlined, SearchOutlined } from '@ant-design/icons'
 import {
     Button,
     Card,
     Col,
     DatePicker,
     Input,
-    Modal,
     Row,
     Space,
     Statistic,
@@ -21,142 +20,10 @@ import {
 } from 'antd'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
-import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useSnackbar } from 'notistack'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
-
-// Dynamically import the PDF components with no SSR
-const PDFReceipt = dynamic(() => import('@react-pdf/renderer').then(mod => {
-  const { Document, Page, Text, View, StyleSheet } = mod;
-
-  const styles = StyleSheet.create({
-    page: {
-      padding: 20,
-      fontSize: 10,
-      width: '80mm',
-    },
-    header: {
-      marginBottom: 10,
-      textAlign: 'center',
-    },
-    title: {
-      fontSize: 14,
-      marginBottom: 5,
-    },
-    subtitle: {
-      fontSize: 12,
-      marginBottom: 5,
-    },
-    divider: {
-      borderBottom: 1,
-      marginVertical: 5,
-    },
-    row: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginVertical: 2,
-    },
-    footer: {
-      marginTop: 20,
-      textAlign: 'center',
-    },
-    text: {
-      fontSize: 10,
-    },
-    bold: {
-      fontWeight: 'bold',
-    },
-  });
-
-  return function PDFReceiptComponent({ sale, customer, item }: any) {
-    return (
-      <Document>
-        <Page size="A4" style={styles.page}>
-          <View style={styles.header}>
-            <Text style={styles.title}>SALON QUIP</Text>
-            <Text style={styles.subtitle}>Sales Receipt</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <Text style={styles.text}>Date:</Text>
-            <Text style={styles.text}>{dayjs(sale.saleDate).format('YYYY-MM-DD HH:mm')}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.text}>Receipt #:</Text>
-            <Text style={styles.text}>{sale.id}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <Text style={styles.text}>Customer:</Text>
-            <Text style={styles.text}>{customer?.name || 'Walk-in Customer'}</Text>
-          </View>
-
-          {customer?.phoneNumber && (
-            <View style={styles.row}>
-              <Text style={styles.text}>Phone:</Text>
-              <Text style={styles.text}>{customer.phoneNumber}</Text>
-            </View>
-          )}
-
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <Text style={styles.text}>Item:</Text>
-            <Text style={styles.text}>{item.name}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.text}>Quantity:</Text>
-            <Text style={styles.text}>{sale.quantitySold}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.text}>Unit Price:</Text>
-            <Text style={styles.text}>KES {sale.sellPrice.toLocaleString()}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.bold}>Total Amount:</Text>
-            <Text style={styles.bold}>KES {(sale.sellPrice * sale.quantitySold).toLocaleString()}</Text>
-          </View>
-
-          {customer && (
-            <>
-              <View style={styles.divider} />
-              <View style={styles.row}>
-                <Text style={styles.text}>Points Earned:</Text>
-                <Text style={styles.text}>KES {sale.loyaltyPointsEarned.toFixed(2)}</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={styles.text}>Points Redeemed:</Text>
-                <Text style={styles.text}>KES {sale.loyaltyPointsRedeemed.toFixed(2)}</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={styles.bold}>Remaining Points:</Text>
-                <Text style={styles.bold}>KES {(customer.loyaltyPoints).toFixed(2)}</Text>
-              </View>
-            </>
-          )}
-
-          <View style={styles.divider} />
-
-          <View style={styles.footer}>
-            <Text style={styles.text}>Thank you for your business!</Text>
-          </View>
-        </Page>
-      </Document>
-    );
-  };
-}), {
-  ssr: false,
-})
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -171,10 +38,6 @@ export default function StockManagementPage() {
   const [isExporting, setIsExporting] = useState(false)
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
   const [searchText, setSearchText] = useState('')
-  const [isReceiptModalVisible, setIsReceiptModalVisible] = useState(false)
-  const [currentSale, setCurrentSale] = useState<any>(null)
-  const [currentCustomer, setCurrentCustomer] = useState<any>(null)
-  const [currentItem, setCurrentItem] = useState<any>(null)
   const [isMobile, setIsMobile] = useState(false)
   const receiptRef = useRef()
 
@@ -443,120 +306,6 @@ export default function StockManagementPage() {
       .sort((a, b) => b.profit - a.profit); // Sort by profit in descending order
   }, [filteredData]);
 
-  const handleViewReceipt = (sale: any) => {
-    const item = items?.find(i => i.id === sale.itemId);
-    setCurrentSale(sale);
-    setCurrentCustomer(customers?.find(c => c.id === sale.customerId) || null);
-    setCurrentItem(item);
-    setIsReceiptModalVisible(true);
-  };
-
-  const handlePrintReceipt = () => {
-    const printWindow = window.open('', '_blank');
-    if (printWindow && receiptRef.current) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Sales Receipt</title>
-            <style>
-              body { font-family: Arial, sans-serif; }
-              .receipt { width: 80mm; margin: 0 auto; padding: 20px; }
-              .header { text-align: center; margin-bottom: 10px; }
-              .title { font-size: 14px; margin-bottom: 5px; }
-              .subtitle { font-size: 12px; margin-bottom: 5px; }
-              .divider { border-bottom: 1px solid #000; margin: 5px 0; }
-              .row { display: flex; justify-content: space-between; margin: 2px 0; }
-              .footer { text-align: center; margin-top: 20px; }
-              .text { font-size: 10px; }
-              .bold { font-weight: bold; }
-            </style>
-          </head>
-          <body>
-            <div class="receipt">
-              <div class="header">
-                <div class="title">SALON QUIP</div>
-                <div class="subtitle">Sales Receipt</div>
-              </div>
-
-              <div class="divider"></div>
-
-              <div class="row">
-                <span class="text">Date:</span>
-                <span class="text">${dayjs(currentSale.saleDate).format('YYYY-MM-DD HH:mm')}</span>
-              </div>
-
-              <div class="row">
-                <span class="text">Receipt #:</span>
-                <span class="text">${currentSale.id}</span>
-              </div>
-
-              <div class="divider"></div>
-
-              <div class="row">
-                <span class="text">Customer:</span>
-                <span class="text">${currentCustomer?.name || 'Walk-in Customer'}</span>
-              </div>
-
-              ${currentCustomer?.phoneNumber ? `
-              <div class="row">
-                <span class="text">Phone:</span>
-                <span class="text">${currentCustomer.phoneNumber}</span>
-              </div>
-              ` : ''}
-
-              <div class="divider"></div>
-
-              <div class="row">
-                <span class="text">Item:</span>
-                <span class="text">${currentItem.name}</span>
-              </div>
-
-              <div class="row">
-                <span class="text">Quantity:</span>
-                <span class="text">${currentSale.quantitySold}</span>
-              </div>
-
-              <div class="row">
-                <span class="text">Unit Price:</span>
-                <span class="text">KES ${currentSale.sellPrice.toLocaleString()}</span>
-              </div>
-
-              <div class="row">
-                <span class="text bold">Total Amount:</span>
-                <span class="text bold">KES ${(currentSale.sellPrice * currentSale.quantitySold).toLocaleString()}</span>
-              </div>
-
-              ${currentCustomer ? `
-              <div class="divider"></div>
-              <div class="row">
-                <span class="text">Points Earned:</span>
-                <span class="text">KES ${currentSale.loyaltyPointsEarned.toFixed(2)}</span>
-              </div>
-              <div class="row">
-                <span class="text">Points Redeemed:</span>
-                <span class="text">KES ${currentSale.loyaltyPointsRedeemed.toFixed(2)}</span>
-              </div>
-              <div class="row">
-                <span class="text bold">Remaining Points:</span>
-                <span class="text bold">KES ${currentCustomer.loyaltyPoints.toFixed(2)}</span>
-              </div>
-              ` : ''}
-
-              <div class="divider"></div>
-
-              <div class="footer">
-                <span class="text">Thank you for your business!</span>
-              </div>
-            </div>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.print();
-      printWindow.close();
-    }
-  };
-
   return (
     <PageLayout layout="full-width">
       <Row justify="center">
@@ -713,20 +462,6 @@ export default function StockManagementPage() {
                         title: 'Total',
                         key: 'total',
                         render: (_, record: any) => `KES ${(record.sellPrice * record.quantitySold).toLocaleString()}`
-                      },
-                      {
-                        title: 'Actions',
-                        key: 'actions',
-                        render: (_, record: any) => (
-                          <Button
-                            type="primary"
-                            icon={<PrinterOutlined />}
-                            onClick={() => handleViewReceipt(record)}
-                            size={isMobile ? 'small' : 'middle'}
-                          >
-                            {isMobile ? '' : 'View Receipt'}
-                          </Button>
-                        )
                       }
                     ]}
                     rowKey="id"
@@ -806,50 +541,6 @@ export default function StockManagementPage() {
           </div>
         </Col>
       </Row>
-      <Modal
-        title="Sales Receipt"
-        open={isReceiptModalVisible}
-        onCancel={() => setIsReceiptModalVisible(false)}
-        footer={[
-          <Button
-            key="print"
-            type="primary"
-            icon={<PrinterOutlined />}
-            onClick={handlePrintReceipt}
-            size={isMobile ? 'small' : 'middle'}
-          >
-            {isMobile ? 'Print' : 'Print Receipt'}
-          </Button>,
-          <Button
-            key="close"
-            onClick={() => setIsReceiptModalVisible(false)}
-            size={isMobile ? 'small' : 'middle'}
-          >
-            Close
-          </Button>
-        ]}
-        width={isMobile ? '95%' : 800}
-        style={{
-          top: isMobile ? 20 : 100,
-          maxWidth: isMobile ? '95vw' : '800px'
-        }}
-        styles={{
-          body: {
-            maxHeight: isMobile ? '70vh' : '80vh',
-            overflowY: 'auto'
-          }
-        }}
-      >
-        <div ref={receiptRef}>
-          {currentSale && (
-            <PDFReceipt
-              sale={currentSale}
-              customer={currentCustomer}
-              item={currentItem}
-            />
-          )}
-        </div>
-      </Modal>
     </PageLayout>
   )
 }

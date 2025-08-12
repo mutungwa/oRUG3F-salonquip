@@ -2,10 +2,10 @@ import { PrismaAdapter } from '@auth/prisma-adapter'
 import type { PrismaClient, Role } from '@prisma/client'
 import * as Bcrypt from 'bcryptjs'
 import {
-  CookiesOptions,
-  getServerSession,
-  type DefaultSession,
-  type NextAuthOptions,
+    CookiesOptions,
+    getServerSession,
+    type DefaultSession,
+    type NextAuthOptions,
 } from 'next-auth'
 import { type Adapter } from 'next-auth/adapters'
 import type { Provider } from 'next-auth/providers'
@@ -169,7 +169,7 @@ function authorize(prisma: PrismaClient) {
     }
 
     const user = await prisma.user.findFirst({
-      where: { email: credentials.email },
+      where: { email: credentials.email.toLowerCase() }, // Normalize email for case-insensitive lookup
       select: { id: true, email: true, password: true },
     })
 
