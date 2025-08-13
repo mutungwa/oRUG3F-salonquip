@@ -238,6 +238,7 @@ model Invitation {
     token String @unique()
     inviterUserId String
     inviter User @relation("inviter", fields: [inviterUserId], references: [id])
+    assignedRole String @default("user")
     status String @default("pending")
     expiresAt DateTime
     acceptedAt DateTime?

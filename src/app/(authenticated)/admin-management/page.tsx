@@ -5,23 +5,23 @@ import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
 import { DeleteOutlined, DollarOutlined, DownloadOutlined, EditOutlined, GiftOutlined, MailOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons'
 import {
-    Alert,
-    Button,
-    Card,
-    Col,
-    DatePicker,
-    Form,
-    Input,
-    InputNumber,
-    Modal,
-    Row,
-    Select,
-    Space,
-    Statistic,
-    Table,
-    Tabs,
-    Tag,
-    Typography,
+  Alert,
+  Button,
+  Card,
+  Col,
+  DatePicker,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Row,
+  Select,
+  Space,
+  Statistic,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
 } from 'antd'
 import dayjs from 'dayjs'
 import { useParams, useRouter } from 'next/navigation'
@@ -385,6 +385,7 @@ export default function AdminManagementPage() {
         },
         body: JSON.stringify({
           email: values.email,
+          assignedRole: values.role,
           inviterName: user?.name || user?.email || 'Admin',
           inviterUserId: user?.id,
           companyName: 'SalonQuip POS',
@@ -445,7 +446,7 @@ export default function AdminManagementPage() {
                       onClick={showInviteModal}
                       style={{ backgroundColor: '#722ed1', borderColor: '#722ed1', color: 'white' }}
                     >
-                      Invite Admin
+                      Invite User
                     </Button>
                   </div>
                   <div style={{ width: '100%', overflowX: 'auto' }}>
@@ -880,9 +881,9 @@ export default function AdminManagementPage() {
         </Form>
       </Modal>
 
-      {/* Admin Invitation Modal */}
+      {/* User Invitation Modal */}
       <Modal
-        title="Invite Admin"
+        title="Invite User"
         open={isInviteModalVisible}
         onCancel={() => {
           setIsInviteModalVisible(false);
@@ -907,12 +908,43 @@ export default function AdminManagementPage() {
           layout="vertical"
         >
           <Alert
-            message="Admin Invitation"
-            description="Send an email invitation to a new admin. They will receive a secure link to register their account with admin privileges."
+            message="User Invitation"
+            description="Send an email invitation to a new user. Choose their role and they will receive a secure link to register their account with the specified privileges."
             type="info"
             showIcon
             style={{ marginBottom: '20px' }}
           />
+          
+          <Form.Item
+            name="role"
+            label="User Role"
+            rules={[
+              { required: true, message: 'Please select a role!' }
+            ]}
+            initialValue="user"
+          >
+            <Select
+              placeholder="Select the role for this user"
+              disabled={isInviting}
+            >
+              <Option value="user">
+                <div>
+                  <div style={{ fontWeight: 'bold' }}>Regular User</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    Can process sales, manage customers, and view reports
+                  </div>
+                </div>
+              </Option>
+              <Option value="admin">
+                <div>
+                  <div style={{ fontWeight: 'bold' }}>Administrator</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    Full access to all features including user management
+                  </div>
+                </div>
+              </Option>
+            </Select>
+          </Form.Item>
           
           <Form.Item
             name="email"
@@ -923,7 +955,7 @@ export default function AdminManagementPage() {
             ]}
           >
             <Input
-              placeholder="Enter the admin's email address"
+              placeholder="Enter the user's email address"
               disabled={isInviting}
             />
           </Form.Item>
@@ -934,7 +966,9 @@ export default function AdminManagementPage() {
               <ul style={{ margin: 0, paddingLeft: '20px' }}>
                 <li>The invitation link will expire in 7 days</li>
                 <li>Make sure Gmail is configured in your environment variables</li>
-                <li>The invitee will be able to create an admin account</li>
+                <li>The invitee will be able to create an account with the selected role</li>
+                <li>Administrators have full access to all system features</li>
+                <li>Regular users have access to sales and basic management features</li>
                 <li>You can track invitation status in the users table</li>
               </ul>
             }

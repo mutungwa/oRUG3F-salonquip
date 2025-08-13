@@ -9,6 +9,9 @@ model Invitation {
     inviterUserId String
     inviter       User      @relation("inviter", fields: [inviterUserId], references: [id])
     
+    // Role assignment
+    assignedRole  String    @default("user") // Role to be assigned when invitation is accepted
+    
     // Status tracking
     status        String    @default("pending") // pending, accepted, expired
     expiresAt     DateTime

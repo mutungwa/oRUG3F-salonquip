@@ -8,6 +8,7 @@ const inviteSchema = z.object({
   inviterName: z.string(),
   companyName: z.string().optional().default('SalonQuip'),
   inviterUserId: z.string(),
+  assignedRole: z.string().default('user'), // Role to assign to the invited user
 });
 
 // Gmail transporter configuration
@@ -27,14 +28,15 @@ const generateInvitationToken = () => {
 };
 
 // Create HTML email template
-const createInvitationEmailTemplate = (inviterName: string, companyName: string, invitationLink: string) => {
+const createInvitationEmailTemplate = (inviterName: string, companyName: string, invitationLink: string, assignedRole: string) => {
+  const roleDisplayName = assignedRole === 'admin' ? 'Administrator' : 'User';
   return `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Admin Invitation - ${companyName}</title>
+      <title>${roleDisplayName} Invitation - ${companyName}</title>
       <style>
         body {
           font-family: Arial, sans-serif;
@@ -129,7 +131,7 @@ const createInvitationEmailTemplate = (inviterName: string, companyName: string,
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, inviterName, companyName, inviterUserId } = inviteSchema.parse(body);
+    const { email, inviterName, companyName, inviterUserId, assignedRole } = inviteSchema.parse(body);
 
     // Normalize email to lowercase for consistency
     const normalizedEmail = email.toLowerCase();
@@ -189,6 +191,7 @@ export async function POST(request: NextRequest) {
         inviterUserId,
         inviterName,
         companyName,
+        // assignedRole, // Will be enabled after database migration
         expiresAt,
         status: 'pending'
       }
@@ -204,8 +207,8 @@ export async function POST(request: NextRequest) {
         address: process.env.GMAIL_USER,
       },
       to: email, // Send to original email for display purposes
-      subject: `Admin Invitation - Join ${companyName}`,
-      html: createInvitationEmailTemplate(inviterName, companyName, invitationLink),
+      subject: `${assignedRole === 'admin' ? 'Administrator' : 'User'} Invitation - Join ${companyName}`,
+      html: createInvitationEmailTemplate(inviterName, companyName, invitationLink, assignedRole),
       text: `
         You've been invited to join ${companyName} as an administrator by ${inviterName}.
         

@@ -1,29 +1,33 @@
 'use client'
 
+import { generatePDFReceipt } from '@/components/PDFReceipt'
 import { useUserContext } from '@/core/context'
 import { Api } from '@/core/trpc'
 import { PageLayout } from '@/designSystem/layouts/Page.layout'
-import { DownloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { Sale, SaleItem } from '@/types/common'
+import { DownloadOutlined, PrinterOutlined, SearchOutlined } from '@ant-design/icons'
 import {
-    Button,
-    Card,
-    Col,
-    DatePicker,
-    Input,
-    Row,
-    Space,
-    Statistic,
-    Table,
-    Tabs,
-    Tag,
-    Typography
+  Button,
+  Card,
+  Col,
+  DatePicker,
+  Input,
+  Row,
+  Space,
+  Statistic,
+  Table,
+  Tabs,
+  Tag,
+  Tooltip,
+  Typography
 } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import { useRouter } from 'next/navigation'
 import { useSnackbar } from 'notistack'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -68,8 +72,8 @@ export default function StockManagementPage() {
   const { data: customers } = Api.customer.findMany.useQuery({});
   const { data: sales } = Api.sale.findMany.useQuery({
     orderBy: { saleDate: 'desc' },
-    take: 200
-    // Note: saleItems relation will be available after migration
+    take: 200,
+    include: { saleItems: true }
   });
 
   // Create a map of items with their associated sales
@@ -88,48 +92,46 @@ export default function StockManagementPage() {
     }).filter(item => item.sales.length > 0); // Only include items with sales
   }, [items, sales]);
 
-  const filteredData = useMemo(() => {
-    if (!itemsWithSalesData) return [];
+  // Filter sales data based on search and date range
+  const filteredSales = useMemo(() => {
+    if (!sales) return [];
 
-    let filtered = itemsWithSalesData;
+    let filtered = sales;
 
     // Date range filter
     if (dateRange && dateRange[0] && dateRange[1]) {
       const startDate = dateRange[0].startOf('day').valueOf();
       const endDate = dateRange[1].endOf('day').valueOf();
 
-      filtered = filtered.filter(item => {
-        const filteredSales = item.sales.filter(sale => {
-          const saleDate = dayjs(sale.saleDate).valueOf();
-          return saleDate >= startDate && saleDate <= endDate;
-        });
-        return filteredSales.length > 0;
-      }).map(item => ({
-        ...item,
-        sales: item.sales.filter(sale => {
-          const saleDate = dayjs(sale.saleDate).valueOf();
-          return saleDate >= startDate && saleDate <= endDate;
-        })
-      }));
+      filtered = filtered.filter(sale => {
+        const saleDate = dayjs(sale.saleDate).valueOf();
+        return saleDate >= startDate && saleDate <= endDate;
+      });
     }
 
     // Search text filter
     if (searchText) {
       const searchLower = searchText.toLowerCase();
-      filtered = filtered.filter(item => {
-        return (
-          item.name.toLowerCase().includes(searchLower) ||
-          item.sku.toLowerCase().includes(searchLower) ||
-          (item.description && item.description.toLowerCase().includes(searchLower)) ||
-          item.sales.some(sale =>
-            sale.branchName.toLowerCase().includes(searchLower)
-          )
+      filtered = filtered.filter(sale => {
+        // Search in sale properties
+        const saleMatches = 
+          sale.branchName.toLowerCase().includes(searchLower) ||
+          (sale.customerName && sale.customerName.toLowerCase().includes(searchLower)) ||
+          (sale.itemName && sale.itemName.toLowerCase().includes(searchLower)) ||
+          (sale.userName && sale.userName.toLowerCase().includes(searchLower));
+
+        // Search in sale items if they exist
+        const saleItemsMatch = sale.saleItems?.some(item => 
+          item.itemName.toLowerCase().includes(searchLower) ||
+          item.itemCategory.toLowerCase().includes(searchLower)
         );
+
+        return saleMatches || saleItemsMatch;
       });
     }
 
     return filtered;
-  }, [itemsWithSalesData, dateRange, searchText]);
+  }, [sales, dateRange, searchText]);
 
   const handleDateRangeChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
     setDateRange(dates);
@@ -140,30 +142,46 @@ export default function StockManagementPage() {
   };
 
   const prepareCSVData = () => {
-    if (!filteredData?.length) return '';
+    if (!filteredSales?.length) return '';
 
     const csvHeaders = [
-      'Item Name',
+      'Transaction Date',
+      'Transaction ID',
+      'Items',
+      'Customer',
       'Branch',
-      'Total Sold Quantity',
-      'Profit (KES)',
-      'Last Sold Date'
+      'Total Quantity',
+      'Total Amount (KES)',
+      'Total Profit (KES)',
+      'Payment Method'
     ].join(',');
 
-    const csvRows = filteredData.map(item => {
-      const branchNames = [...new Set(item.sales.map((sale) => sale.branchName))]
-      const totalSold = item.sales.reduce((acc, sale) => acc + sale.quantitySold, 0);
-      const totalProfit = item.sales.reduce((acc, sale) => acc + sale.profit, 0);
-      const lastSaleDate = item.sales.reduce((latest, sale) =>
-        new Date(sale.saleDate) > new Date(latest.saleDate) ? sale : latest
-      );
+    const csvRows = filteredSales.map(sale => {
+      // Get items list - handle both legacy and new format
+      let itemsList = '';
+      let totalQty = 0;
+      
+      if (sale.saleItems && sale.saleItems.length > 0) {
+        itemsList = sale.saleItems.map(item => `${item.itemName} (${item.quantitySold})`).join('; ');
+        totalQty = sale.saleItems.reduce((sum, item) => sum + item.quantitySold, 0);
+      } else if (sale.itemName) {
+        itemsList = `${sale.itemName} (${sale.quantitySold})`;
+        totalQty = sale.quantitySold || 0;
+      }
+
+      const totalAmount = sale.totalAmount || (sale.sellPrice && sale.quantitySold ? sale.sellPrice * sale.quantitySold : 0);
+      const totalProfit = sale.totalProfit || sale.profit || 0;
 
       return [
-        `"${item.name}"`,
-        `"${branchNames.join(', ')}"`,
-        totalSold,
+        `"${dayjs(sale.saleDate).format('DD-MM-YYYY HH:mm')}"`,
+        `"${sale.id}"`,
+        `"${itemsList}"`,
+        `"${sale.customerName || 'Walk-in'}"`,
+        `"${sale.branchName}"`,
+        totalQty,
+        totalAmount.toFixed(2),
         totalProfit.toFixed(2),
-        `"${dayjs(lastSaleDate.saleDate).format('DD-MM-YYYY')}"`
+        `"${sale.paymentMethod || 'Cash'}"`
       ].join(',');
     });
 
@@ -201,101 +219,273 @@ export default function StockManagementPage() {
     }
   };
 
-  const columns = [
+  const handleReprintReceipt = async (saleRecord: any) => {
+    try {
+      // Determine if this is a legacy single-item sale or a multi-item sale
+      const isLegacySale = saleRecord.itemName && !saleRecord.saleItems?.length;
+      
+      let saleItems: SaleItem[] = [];
+      
+      if (isLegacySale) {
+        // Handle legacy sales with item data directly in the sale record
+        saleItems = [{
+          id: saleRecord.id,
+          itemName: saleRecord.itemName,
+          itemCategory: saleRecord.itemCategory || 'General',
+          sellPrice: saleRecord.sellPrice,
+          quantitySold: saleRecord.quantitySold,
+          profit: saleRecord.profit
+        }];
+      } else if (saleRecord.saleItems?.length > 0) {
+        // Handle new multi-item sales
+        saleItems = saleRecord.saleItems.map((item: any) => ({
+          id: item.id,
+          itemName: item.itemName,
+          itemCategory: item.itemCategory,
+          sellPrice: item.sellPrice,
+          quantitySold: item.quantitySold,
+          profit: item.profit
+        }));
+      } else {
+        // Fallback for sales without proper item data
+        enqueueSnackbar('No item data found for this sale', { variant: 'warning' });
+        return;
+      }
+
+      // Convert the sale record to the expected Sale format
+      const sale: Sale = {
+        id: saleRecord.id,
+        saleDate: saleRecord.saleDate,
+        branchName: saleRecord.branchName,
+        userName: saleRecord.userName || 'System',
+        customerName: saleRecord.customerName,
+        customerPhone: saleRecord.customerPhone,
+        totalAmount: saleRecord.totalAmount || (isLegacySale ? saleRecord.sellPrice * saleRecord.quantitySold : 0),
+        totalProfit: saleRecord.totalProfit || (isLegacySale ? saleRecord.profit : 0),
+        loyaltyPointsEarned: saleRecord.loyaltyPointsEarned || 0,
+        loyaltyPointsRedeemed: saleRecord.loyaltyPointsRedeemed || 0,
+        paymentMethod: saleRecord.paymentMethod || 'Cash',
+        paymentReference: saleRecord.paymentReference,
+        saleItems: saleItems
+      };
+
+      // Create customer object if customer data exists
+      const customer = saleRecord.customerName ? {
+        id: saleRecord.customerId || '',
+        name: saleRecord.customerName,
+        phoneNumber: saleRecord.customerPhone || '',
+        loyaltyPoints: 0
+      } : null;
+
+      await generatePDFReceipt(sale, customer, { format: 'detailed', printInNewTab: true });
+      enqueueSnackbar('Receipt generated successfully', { variant: 'success' });
+    } catch (error) {
+      console.error('Failed to reprint receipt:', error);
+      enqueueSnackbar('Failed to generate receipt', { variant: 'error' });
+    }
+  };
+
+  const columns: ColumnsType<any> = [
     {
-      title: 'Item Name',
-      dataIndex: 'name',
-      key: 'name',
-      filteredValue: searchText ? [searchText] : null,
-      onFilter: (value: string, record: any) =>
-        record.name.toLowerCase().includes(value.toLowerCase()),
+      title: 'Transaction Date',
+      dataIndex: 'saleDate',
+      key: 'saleDate',
+      render: (date: string) => dayjs(date).format(isMobile ? 'DD/MM/YY' : 'DD-MM-YYYY HH:mm'),
+      sorter: (a: any, b: any) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime(),
+      defaultSortOrder: 'descend' as const,
+      width: isMobile ? 100 : 150,
+    },
+    {
+      title: 'Items Sold',
+      key: 'items',
+      render: (_, record: any) => {
+        // Handle both legacy single-item sales and new multi-item sales
+        if (record.saleItems && record.saleItems.length > 0) {
+          if (record.saleItems.length === 1) {
+            const item = record.saleItems[0];
+            return (
+              <div>
+                <div style={{ fontWeight: 'bold' }}>{item.itemName}</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  Qty: {item.quantitySold} @ KES {item.sellPrice.toLocaleString()}
+                </div>
+              </div>
+            );
+          } else {
+            return (
+              <div>
+                <div style={{ fontWeight: 'bold' }}>{record.saleItems[0].itemName}</div>
+                <div style={{ fontSize: '12px', color: '#1890ff', cursor: 'pointer' }}>
+                  +{record.saleItems.length - 1} more item{record.saleItems.length > 2 ? 's' : ''} (Click to expand)
+                </div>
+              </div>
+            );
+          }
+        } else if (record.itemName) {
+          // Legacy sales format
+          return (
+            <div>
+              <div style={{ fontWeight: 'bold' }}>{record.itemName}</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>
+                Qty: {record.quantitySold} @ KES {record.sellPrice?.toLocaleString()}
+              </div>
+            </div>
+          );
+        }
+        return 'No items';
+      },
+      ellipsis: isMobile,
+    },
+    {
+      title: 'Customer',
+      dataIndex: 'customerName',
+      key: 'customerName',
+      render: (text: string) => text || 'Walk-in',
+      responsive: ['md'],
+      width: 120,
     },
     {
       title: 'Branch',
-      dataIndex: 'sales',
-      key: 'branch',
-      render: (sales: any[]) => {
-        const branchNames = [...new Set(sales.map((sale) => sale.branchName))]
-        return branchNames.join(', ')
-      },
+      dataIndex: 'branchName',
+      key: 'branchName',
+      responsive: ['sm'],
+      width: 100,
     },
     {
-      title: 'Total Sold Quantity',
-      dataIndex: 'sales',
-      key: 'sales',
-      render: (sales: any[]) =>
-        sales.reduce((acc, sale) => acc + sale.quantitySold, 0).toString(),
+      title: 'Total Amount',
+      key: 'totalAmount',
+      render: (_, record: any) => {
+        let total = 0;
+        if (record.totalAmount) {
+          total = record.totalAmount;
+        } else if (record.saleItems && record.saleItems.length > 0) {
+          total = record.saleItems.reduce((sum: number, item: any) => sum + (item.sellPrice * item.quantitySold), 0);
+        } else if (record.sellPrice && record.quantitySold) {
+          total = record.sellPrice * record.quantitySold;
+        }
+        return (
+          <Tag color="blue" style={{ fontWeight: 'bold' }}>
+            KES {total.toLocaleString()}
+          </Tag>
+        );
+      },
+      width: 120,
     },
     {
-      title: 'Profit (KES)',
-      dataIndex: 'sales',
-      key: 'profit',
-      render: (sales: any[]) => {
-        const totalProfit = sales.reduce((acc, sale) => acc + sale.profit, 0);
-        // Format number with commas and 2 decimal places
-        const formattedProfit = totalProfit.toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        });
-        return <Tag color="green">{`KES ${formattedProfit}`}</Tag>;
-      },
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record: any) => (
+        <Tooltip title="Print Receipt">
+          <Button
+            type="primary"
+            size="small"
+            icon={<PrinterOutlined />}
+            onClick={() => handleReprintReceipt(record)}
+          >
+            {isMobile ? '' : 'Print'}
+          </Button>
+        </Tooltip>
+      ),
+      width: isMobile ? 60 : 100,
+      fixed: isMobile ? 'right' as const : undefined,
     },
-    {
-      title: 'Last Sold Date',
-      dataIndex: 'sales',
-      key: 'lastSoldDate',
-      render: (sales: any[]) => {
-        const lastSale = sales.reduce((latest, sale) =>
-          new Date(sale.saleDate) > new Date(latest.saleDate) ? sale : latest
-        )
-        return dayjs(lastSale.saleDate).format('DD-MM-YYYY')
-      },
-    },
-  ]
+  ];
 
-  const salesTrendData = filteredData.map(item => ({
-    date: dayjs(item.sales[0].saleDate).format('YYYY-MM-DD'),
-    totalSold: item.sales.reduce((acc, sale) => acc + sale.quantitySold, 0),
-    totalProfit: item.sales.reduce((acc, sale) => acc + sale.profit, 0),
-  }));
-
-  const branchPerformanceData = itemsWithSalesData?.reduce((acc, item) => {
-    item.sales.forEach(sale => {
-      const branch = acc.find(b => b.branchName === sale.branchName);
-      if (branch) {
-        branch.totalSold += sale.quantitySold;
-        branch.totalProfit += sale.profit;
-      } else {
-        acc.push({
-          branchName: sale.branchName,
-          totalSold: sale.quantitySold,
-          totalProfit: sale.profit,
-        });
+  const salesTrendData = useMemo(() => {
+    if (!filteredSales) return [];
+    
+    // Group sales by date
+    const salesByDate = filteredSales.reduce((acc: any, sale: any) => {
+      const dateKey = dayjs(sale.saleDate).format('YYYY-MM-DD');
+      if (!acc[dateKey]) {
+        acc[dateKey] = { date: dateKey, totalSold: 0, totalProfit: 0, transactionCount: 0 };
       }
-    });
-    return acc;
-  }, [] as { branchName: string; totalSold: number; totalProfit: number; }[]);
+      
+      let saleQty = 0;
+      let saleProfit = 0;
+      
+      if (sale.saleItems && sale.saleItems.length > 0) {
+        saleQty = sale.saleItems.reduce((sum: number, item: any) => sum + item.quantitySold, 0);
+        saleProfit = sale.totalProfit || sale.saleItems.reduce((sum: number, item: any) => sum + item.profit, 0);
+      } else {
+        saleQty = sale.quantitySold || 0;
+        saleProfit = sale.profit || 0;
+      }
+      
+      acc[dateKey].totalSold += saleQty;
+      acc[dateKey].totalProfit += saleProfit;
+      acc[dateKey].transactionCount += 1;
+      
+      return acc;
+    }, {});
+    
+    return Object.values(salesByDate).sort((a: any, b: any) => a.date.localeCompare(b.date));
+  }, [filteredSales]);
+
+  const branchPerformanceData = useMemo(() => {
+    if (!filteredSales) return [];
+    
+    const branchStats = filteredSales.reduce((acc: any, sale: any) => {
+      const branchName = sale.branchName;
+      if (!acc[branchName]) {
+        acc[branchName] = { branchName, totalSold: 0, totalProfit: 0, transactionCount: 0 };
+      }
+      
+      let saleQty = 0;
+      let saleProfit = 0;
+      
+      if (sale.saleItems && sale.saleItems.length > 0) {
+        saleQty = sale.saleItems.reduce((sum: number, item: any) => sum + item.quantitySold, 0);
+        saleProfit = sale.totalProfit || sale.saleItems.reduce((sum: number, item: any) => sum + item.profit, 0);
+      } else {
+        saleQty = sale.quantitySold || 0;
+        saleProfit = sale.profit || 0;
+      }
+      
+      acc[branchName].totalSold += saleQty;
+      acc[branchName].totalProfit += saleProfit;
+      acc[branchName].transactionCount += 1;
+      
+      return acc;
+    }, {});
+    
+    return Object.values(branchStats);
+  }, [filteredSales]);
 
   // Calculate total profit from filtered data
   const totalProfit = useMemo(() => {
-    if (!filteredData) return 0;
-    return filteredData.reduce((acc, item) => {
-      const itemProfit = item.sales.reduce((saleAcc, sale) => saleAcc + sale.profit, 0);
-      return acc + itemProfit;
+    if (!filteredSales) return 0;
+    return filteredSales.reduce((acc, sale) => {
+      let saleProfit = 0;
+      if (sale.totalProfit) {
+        saleProfit = sale.totalProfit;
+      } else if (sale.saleItems && sale.saleItems.length > 0) {
+        saleProfit = sale.saleItems.reduce((sum: number, item: any) => sum + item.profit, 0);
+      } else {
+        saleProfit = sale.profit || 0;
+      }
+      return acc + saleProfit;
     }, 0);
-  }, [filteredData]);
+  }, [filteredSales]);
 
   // Calculate branch-wise profits
   const branchProfits = useMemo(() => {
-    if (!filteredData) return [];
+    if (!filteredSales) return [];
 
     const branchProfitMap = new Map<string, number>();
 
-    filteredData.forEach(item => {
-      item.sales.forEach(sale => {
-        const currentProfit = branchProfitMap.get(sale.branchName) || 0;
-        branchProfitMap.set(sale.branchName, currentProfit + sale.profit);
-      });
+    filteredSales.forEach(sale => {
+      let saleProfit = 0;
+      if (sale.totalProfit) {
+        saleProfit = sale.totalProfit;
+      } else if (sale.saleItems && sale.saleItems.length > 0) {
+        saleProfit = sale.saleItems.reduce((sum: number, item: any) => sum + item.profit, 0);
+      } else {
+        saleProfit = sale.profit || 0;
+      }
+      
+      const currentProfit = branchProfitMap.get(sale.branchName) || 0;
+      branchProfitMap.set(sale.branchName, currentProfit + saleProfit);
     });
 
     return Array.from(branchProfitMap.entries())
@@ -304,7 +494,7 @@ export default function StockManagementPage() {
         profit
       }))
       .sort((a, b) => b.profit - a.profit); // Sort by profit in descending order
-  }, [filteredData]);
+  }, [filteredSales]);
 
   return (
     <PageLayout layout="full-width">
@@ -324,7 +514,7 @@ export default function StockManagementPage() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
                     <YAxis />
-                    <Tooltip />
+                    <RechartsTooltip />
                     <Legend />
                     <Line type="monotone" dataKey="totalSold" stroke="#8884d8" />
                     <Line type="monotone" dataKey="totalProfit" stroke="#82ca9d" />
@@ -343,14 +533,14 @@ export default function StockManagementPage() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="branchName" />
                     <YAxis />
-                    <Tooltip />
+                    <RechartsTooltip />
                     <Legend />
                     <Bar dataKey="totalSold" fill="#8884d8" />
                     <Bar dataKey="totalProfit" fill="#82ca9d" />
                   </BarChart>
                 </div>
               </TabPane>
-              <TabPane tab="Total Profit Summary" key="3">
+              <TabPane tab="Profit Summary" key="3">
                 <div style={{
                   padding: isMobile ? '20px' : '40px',
                   textAlign: 'center',
@@ -417,78 +607,21 @@ export default function StockManagementPage() {
                   </div>
                 </div>
               </TabPane>
-              <TabPane tab="Sales History" key="4">
-                <div style={{ width: '100%', overflowX: 'auto' }}>
-                  <Table
-                    dataSource={[...(sales || [])].sort((a, b) =>
-                      new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime()
-                    )}
-                    columns={[
-                      {
-                        title: 'Date',
-                        dataIndex: 'saleDate',
-                        key: 'saleDate',
-                        render: (date: string) => dayjs(date).format(isMobile ? 'YYYY-MM-DD' : 'YYYY-MM-DD HH:mm'),
-                        sorter: (a, b) => new Date(b.saleDate).getTime() - new Date(a.saleDate).getTime(),
-                        defaultSortOrder: 'descend'
-                      },
-                      {
-                        title: 'Item',
-                        dataIndex: 'itemName',
-                        key: 'itemName',
-                        ellipsis: isMobile
-                      },
-                      {
-                        title: 'Customer',
-                        dataIndex: 'customerName',
-                        key: 'customerName',
-                        render: (text: string) => text || 'Walk-in',
-                        ellipsis: isMobile,
-                        responsive: ['md']
-                      },
-                      {
-                        title: 'Qty',
-                        dataIndex: 'quantitySold',
-                        key: 'quantitySold'
-                      },
-                      {
-                        title: 'Price',
-                        dataIndex: 'sellPrice',
-                        key: 'sellPrice',
-                        render: (price: number) => `KES ${price.toLocaleString()}`,
-                        responsive: ['sm']
-                      },
-                      {
-                        title: 'Total',
-                        key: 'total',
-                        render: (_, record: any) => `KES ${(record.sellPrice * record.quantitySold).toLocaleString()}`
-                      }
-                    ]}
-                    rowKey="id"
-                    pagination={{
-                      pageSize: 10,
-                      size: isMobile ? 'small' : undefined
-                    }}
-                    scroll={{ x: isMobile ? 800 : undefined }}
-                    size={isMobile ? 'small' : 'middle'}
-                  />
-                </div>
-              </TabPane>
             </Tabs>
           </Card>
         </Col>
       </Row>
       <Row justify="center" style={{ marginBottom: '20px' }}>
         <Col span={24}>
-          <Title level={2}>Sales Management</Title>
-          <Text>View and manage all sales records.</Text>
+          <Title level={2}>Sales Transactions</Title>
+          <Text>View all sales transactions with detailed item information and print receipts.</Text>
         </Col>
       </Row>
       <Row justify="center" style={{ marginBottom: '20px' }}>
         <Col span={24}>
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Input
-              placeholder={isMobile ? "Search..." : "Search by name, SKU, description, or branch name..."}
+              placeholder={isMobile ? "Search..." : "Search by customer, item, branch, or user..."}
               prefix={<SearchOutlined />}
               onChange={handleSearch}
               value={searchText}
@@ -511,7 +644,7 @@ export default function StockManagementPage() {
                 onClick={downloadCSV}
                 icon={<DownloadOutlined />}
                 loading={isExporting}
-                disabled={!filteredData?.length || isExporting}
+                disabled={!filteredSales?.length || isExporting}
                 style={{ width: isMobile ? '100%' : 'auto' }}
               >
                 {isExporting ? 'Preparing...' : isMobile ? 'Download' : 'Download Report'}
@@ -525,17 +658,101 @@ export default function StockManagementPage() {
           <div style={{ width: '100%', overflowX: 'auto' }}>
             <Table
               columns={columns}
-              dataSource={filteredData}
+              dataSource={filteredSales}
               loading={isLoading}
               rowKey="id"
+              expandable={{
+                expandedRowRender: (record: any) => {
+                  // Only show expanded row for multi-item sales
+                  if (!record.saleItems || record.saleItems.length <= 1) {
+                    return null;
+                  }
+
+                  return (
+                    <div style={{ padding: '10px', backgroundColor: '#fafafa' }}>
+                      <Title level={5} style={{ marginBottom: '10px' }}>Transaction Items:</Title>
+                      <Table
+                        dataSource={record.saleItems}
+                        pagination={false}
+                        size="small"
+                        columns={[
+                          {
+                            title: 'Item Name',
+                            dataIndex: 'itemName',
+                            key: 'itemName',
+                          },
+                          {
+                            title: 'Category',
+                            dataIndex: 'itemCategory',
+                            key: 'itemCategory',
+                            responsive: ['md'],
+                          },
+                          {
+                            title: 'Quantity',
+                            dataIndex: 'quantitySold',
+                            key: 'quantitySold',
+                            width: 80,
+                          },
+                          {
+                            title: 'Unit Price',
+                            dataIndex: 'sellPrice',
+                            key: 'sellPrice',
+                            render: (price: number) => `KES ${price.toLocaleString()}`,
+                            width: 100,
+                          },
+                          {
+                            title: 'Subtotal',
+                            key: 'subtotal',
+                            render: (_, item: any) => `KES ${(item.sellPrice * item.quantitySold).toLocaleString()}`,
+                            width: 100,
+                          },
+                          {
+                            title: 'Profit',
+                            dataIndex: 'profit',
+                            key: 'profit',
+                            render: (profit: number) => (
+                              <Tag color="green">KES {profit.toLocaleString()}</Tag>
+                            ),
+                            width: 100,
+                          },
+                        ]}
+                        rowKey="id"
+                      />
+                      <div style={{ marginTop: '10px', textAlign: 'right' }}>
+                        <Text strong>
+                          Total: KES {(record.totalAmount || record.saleItems.reduce((sum: number, item: any) => sum + (item.sellPrice * item.quantitySold), 0)).toLocaleString()}
+                        </Text>
+                      </div>
+                    </div>
+                  );
+                },
+                rowExpandable: (record: any) => {
+                  // Only allow expansion for multi-item sales
+                  return record.saleItems && record.saleItems.length > 1;
+                },
+                expandIcon: ({ expanded, onExpand, record }) => {
+                  // Only show expand icon for multi-item sales
+                  if (!record.saleItems || record.saleItems.length <= 1) {
+                    return null;
+                  }
+                  return (
+                    <span
+                      onClick={e => onExpand(record, e)}
+                      style={{ cursor: 'pointer', color: '#1890ff' }}
+                    >
+                      {expanded ? '▼' : '▶'} 
+                    </span>
+                  );
+                },
+              }}
               pagination={{
                 pageSize: 10,
                 showSizeChanger: true,
-                showTotal: (total) => `Total ${total} items`,
+                showTotal: (total) => `Total ${total} transactions`,
                 responsive: true,
                 size: isMobile ? 'small' : undefined
               }}
-              scroll={{ x: isMobile ? 800 : undefined }}
+              scroll={{ x: isMobile ? 900 : undefined }}
               size={isMobile ? 'small' : 'middle'}
             />
           </div>
