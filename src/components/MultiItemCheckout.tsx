@@ -1,29 +1,29 @@
 import { CartItem, Customer } from '@/types/common';
 import {
-    CreditCardOutlined,
-    DeleteOutlined,
-    DollarOutlined,
-    PhoneOutlined,
-    TagOutlined,
-    UserOutlined
+  CreditCardOutlined,
+  DeleteOutlined,
+  DollarOutlined,
+  PhoneOutlined,
+  TagOutlined,
+  UserOutlined
 } from '@ant-design/icons';
 import {
-    Alert,
-    Button,
-    Card,
-    Checkbox,
-    Divider,
-    Form,
-    Input,
-    InputNumber,
-    notification,
-    Radio,
-    Select,
-    Space,
-    Table,
-    Tag,
-    Tooltip,
-    Typography
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Divider,
+  Form,
+  Input,
+  InputNumber,
+  notification,
+  Radio,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography
 } from 'antd';
 import React, { useEffect, useState } from 'react';
 
@@ -327,7 +327,7 @@ const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
           <Radio.Group>
             <Radio.Button value="cash">Cash</Radio.Button>
             <Radio.Button value="card">Card</Radio.Button>
-            <Radio.Button value="mobile">Mobile Money</Radio.Button>
+            <Radio.Button value="mpesa">M-Pesa</Radio.Button>
           </Radio.Group>
         </Form.Item>
 
@@ -336,7 +336,7 @@ const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
           label="Payment Reference"
           rules={[
             {
-              required: form.getFieldValue('paymentMethod') !== 'cash',
+              required: !['cash', 'mpesa'].includes(form.getFieldValue('paymentMethod')),
               message: 'Please enter payment reference!'
             }
           ]}
@@ -344,7 +344,11 @@ const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
         >
           <Input
             prefix={<CreditCardOutlined />}
-            placeholder="Enter payment reference number"
+            placeholder={
+              form.getFieldValue('paymentMethod') === 'mpesa' 
+                ? "Enter M-Pesa transaction ID (optional)" 
+                : "Enter payment reference number"
+            }
           />
         </Form.Item>
 
