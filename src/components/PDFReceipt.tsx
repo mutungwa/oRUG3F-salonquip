@@ -30,10 +30,11 @@ export const generatePDFReceipt = async (
       });
 
       // Create new PDF document (80mm width for thermal printers)
+      // Start with initial height, will be adjusted based on content
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: [80, 200] // Height adjusted for detailed item listing
+        format: [80, 297] // Start with A4 height, will adjust later
       });
 
     // Set font
@@ -44,8 +45,14 @@ export const generatePDFReceipt = async (
     const margin = 5;
     const contentWidth = pageWidth - (margin * 2);
 
+    // Remove page break functionality - we'll use dynamic height instead
+    // Track maximum Y position for final height calculation
+    let maxYPosition = 10;
+
     // Helper function to add centered text
     const addCenteredText = (text: string, fontSize: number, isBold = false) => {
+      const spacing = fontSize <= 9 ? fontSize * 0.4 + 1.5 : fontSize * 0.6 + 2.5;
+      
       pdf.setFontSize(fontSize);
       if (isBold) pdf.setFont('helvetica', 'bold');
       else pdf.setFont('helvetica', 'normal');
@@ -53,20 +60,22 @@ export const generatePDFReceipt = async (
       const textWidth = pdf.getTextWidth(text);
       const x = (pageWidth - textWidth) / 2;
       pdf.text(text, x, yPosition);
-      // Use smaller spacing for header info (size 8-9) and normal for others
-      const spacing = fontSize <= 9 ? fontSize * 0.4 + 1.5 : fontSize * 0.6 + 2.5;
       yPosition += spacing;
+      maxYPosition = Math.max(maxYPosition, yPosition);
     };
 
     // Helper function to add left-right text
     const addLeftRightText = (leftText: string, rightText: string, fontSize = 11) => {
+      const spacing = fontSize * 0.6 + 1.5;
+      
       pdf.setFontSize(fontSize);
       pdf.setFont('helvetica', 'normal');
       
       pdf.text(leftText, margin, yPosition);
       const rightTextWidth = pdf.getTextWidth(rightText);
       pdf.text(rightText, pageWidth - margin - rightTextWidth, yPosition);
-      yPosition += fontSize * 0.6 + 1.5; // Improved spacing
+      yPosition += spacing;
+      maxYPosition = Math.max(maxYPosition, yPosition);
     };
 
     // Helper function to add line
@@ -74,6 +83,7 @@ export const generatePDFReceipt = async (
       yPosition += 2; // Add space before line
       pdf.line(margin, yPosition, pageWidth - margin, yPosition);
       yPosition += 4; // Add space after line
+      maxYPosition = Math.max(maxYPosition, yPosition);
     };
 
     // Header
@@ -132,6 +142,7 @@ export const generatePDFReceipt = async (
         
         if (index < sale.saleItems.length - 1) {
           yPosition += 2; // Space between items
+          maxYPosition = Math.max(maxYPosition, yPosition);
         }
       });
     } else {
@@ -161,6 +172,12 @@ export const generatePDFReceipt = async (
     yPosition += 2; // Space before delivery info
     addCenteredText('We do deliveries countrywide', 9);
     addCenteredText('Powered by SalonQuip App', 9);
+
+    // Adjust PDF height to fit content seamlessly (add 10mm bottom margin)
+    const finalHeight = maxYPosition + 10;
+    
+    // Update the PDF page size to match content
+    pdf.internal.pageSize.height = finalHeight;
 
     // Close loading notification
     notification.destroy(loadingKey);
