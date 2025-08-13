@@ -30,11 +30,11 @@ export const generatePDFReceipt = async (
       });
 
       // Create new PDF document (80mm width for thermal printers)
-      // Start with initial height, will be adjusted based on content
+      // Use a large initial height that we'll trim at the end
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: [80, 297] // Start with A4 height, will adjust later
+        format: [80, 500] // Large initial height
       });
 
     // Set font
@@ -45,7 +45,6 @@ export const generatePDFReceipt = async (
     const margin = 5;
     const contentWidth = pageWidth - (margin * 2);
 
-    // Remove page break functionality - we'll use dynamic height instead
     // Track maximum Y position for final height calculation
     let maxYPosition = 10;
 
@@ -173,18 +172,132 @@ export const generatePDFReceipt = async (
     addCenteredText('We do deliveries countrywide', 9);
     addCenteredText('Powered by SalonQuip App', 9);
 
-    // Adjust PDF height to fit content seamlessly (add 10mm bottom margin)
-    const finalHeight = maxYPosition + 10;
+    // Calculate final height needed (add some bottom margin)
+    const finalHeight = Math.max(maxYPosition + 15, 100); // Minimum 100mm height
     
-    // Update the PDF page size to match content
-    pdf.internal.pageSize.height = finalHeight;
+    // Create a new properly sized PDF
+    const finalPdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: [80, finalHeight]
+    });
+    
+    // Set font for the new PDF
+    finalPdf.setFont('helvetica');
+    
+    // Recreate all content in the new PDF with correct sizing
+    let newYPosition = 10;
+    
+    // Helper functions for final PDF
+    const addCenteredTextFinal = (text: string, fontSize: number, isBold = false) => {
+      const spacing = fontSize <= 9 ? fontSize * 0.4 + 1.5 : fontSize * 0.6 + 2.5;
+      finalPdf.setFontSize(fontSize);
+      if (isBold) finalPdf.setFont('helvetica', 'bold');
+      else finalPdf.setFont('helvetica', 'normal');
+      const textWidth = finalPdf.getTextWidth(text);
+      const x = (pageWidth - textWidth) / 2;
+      finalPdf.text(text, x, newYPosition);
+      newYPosition += spacing;
+    };
+    
+    const addLeftRightTextFinal = (leftText: string, rightText: string, fontSize = 11) => {
+      const spacing = fontSize * 0.6 + 1.5;
+      finalPdf.setFontSize(fontSize);
+      finalPdf.setFont('helvetica', 'normal');
+      finalPdf.text(leftText, margin, newYPosition);
+      const rightTextWidth = finalPdf.getTextWidth(rightText);
+      finalPdf.text(rightText, pageWidth - margin - rightTextWidth, newYPosition);
+      newYPosition += spacing;
+    };
+    
+    const addLineFinal = () => {
+      newYPosition += 2;
+      finalPdf.line(margin, newYPosition, pageWidth - margin, newYPosition);
+      newYPosition += 4;
+    };
+    
+    // Recreate header
+    addCenteredTextFinal('SALON QUIP', 18, true);
+    addCenteredTextFinal('P.O.Box 6855-00200 Nairobi', 8);
+    addCenteredTextFinal('Tom Mboya St, Kenha House 1st Floor Rm 4', 8);
+    addCenteredTextFinal('Next to Afya Center', 8);
+    addCenteredTextFinal('Tel: 0722707188/0715135405', 8);
+    newYPosition += 1;
+    addCenteredTextFinal('Sales Receipt', 13);
+    addLineFinal();
+    
+    // Recreate receipt details
+    addLeftRightTextFinal('Date:', dayjs(sale.saleDate).format('YYYY-MM-DD HH:mm'));
+    addLeftRightTextFinal('Receipt #:', sale.id.substring(0, 12));
+    addLeftRightTextFinal('Branch:', sale.branchName || 'N/A');
+    addLeftRightTextFinal('Served By:', sale.userName || 'N/A');
+    addLineFinal();
+    
+    // Recreate customer info
+    addLeftRightTextFinal('Customer:', customer?.name || sale.customerName || 'Walk-in');
+    if (customer?.phoneNumber || sale.customerPhone) {
+      addLeftRightTextFinal('Phone:', customer?.phoneNumber || sale.customerPhone || '');
+    }
+    if (customer?.loyaltyPoints !== undefined) {
+      addLeftRightTextFinal('Current Points:', customer.loyaltyPoints.toLocaleString());
+    }
+    if ((sale.loyaltyPointsEarned || 0) > 0) {
+      addLeftRightTextFinal('Points Earned:', `+${(sale.loyaltyPointsEarned || 0).toLocaleString()}`);
+    }
+    addLineFinal();
+    
+    // Recreate items
+    addCenteredTextFinal('ITEMS', 12, true);
+    newYPosition += 2;
+    if (sale.saleItems && sale.saleItems.length > 0) {
+      sale.saleItems.forEach((item, index) => {
+        addLeftRightTextFinal(
+          `${index + 1}. ${item.itemName}`, 
+          `KES ${(item.sellPrice || 0).toLocaleString()}`,
+          10
+        );
+        const itemSubtotal = (item.sellPrice || 0) * item.quantitySold;
+        addLeftRightTextFinal(
+          `   Qty: ${item.quantitySold}`, 
+          `KES ${itemSubtotal.toLocaleString()}`,
+          9
+        );
+        if (index < sale.saleItems.length - 1) {
+          newYPosition += 2;
+        }
+      });
+    } else {
+      addLeftRightTextFinal('No items found', '', 8);
+    }
+    
+    newYPosition += 2;
+    addLineFinal();
+    
+    // Recreate totals
+    addLeftRightTextFinal('Subtotal:', `KES ${(sale.totalAmount || 0).toLocaleString()}`);
+    if ((sale.loyaltyPointsRedeemed || 0) > 0) {
+      addLeftRightTextFinal('Points Redeemed:', `- KES ${(sale.loyaltyPointsRedeemed || 0).toLocaleString()}`);
+    }
+    finalPdf.setFont('helvetica', 'bold');
+    addLeftRightTextFinal('Total Amount:', `KES ${((sale.totalAmount || 0) - (sale.loyaltyPointsRedeemed || 0)).toLocaleString()}`, 11);
+    finalPdf.setFont('helvetica', 'normal');
+    const finalPaymentMethod = (sale.paymentMethod || 'cash').charAt(0).toUpperCase() + 
+                         (sale.paymentMethod || 'cash').slice(1);
+    addLeftRightTextFinal('Payment:', finalPaymentMethod);
+    
+    // Recreate footer
+    addLineFinal();
+    addCenteredTextFinal('Thank you for choosing us to serve you', 10);
+    newYPosition += 2;
+    addCenteredTextFinal('We do deliveries countrywide', 9);
+    addCenteredTextFinal('Powered by SalonQuip App', 9);
 
     // Close loading notification
     notification.destroy(loadingKey);
 
     // Generate and handle the PDF (non-blocking)
     if (printInNewTab) {
-      const pdfBlob = pdf.output('blob');
+      const pdfBlob = finalPdf.output('blob');
       const url = URL.createObjectURL(pdfBlob);
       const newWindow = window.open(url, '_blank');
       
@@ -204,7 +317,7 @@ export const generatePDFReceipt = async (
       }
     } else {
       const fileName = `receipt_${sale.id}_${dayjs(sale.saleDate).format('YYYY-MM-DD')}.pdf`;
-      pdf.save(fileName);
+      finalPdf.save(fileName);
     }
 
     } catch (error) {
