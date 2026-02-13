@@ -1,29 +1,29 @@
 import { CartItem, Customer } from '@/types/common';
 import {
-  CreditCardOutlined,
-  DeleteOutlined,
-  DollarOutlined,
-  PhoneOutlined,
-  TagOutlined,
-  UserOutlined
+    CreditCardOutlined,
+    DeleteOutlined,
+    DollarOutlined,
+    PhoneOutlined,
+    TagOutlined,
+    UserOutlined
 } from '@ant-design/icons';
 import {
-  Alert,
-  Button,
-  Card,
-  Checkbox,
-  Divider,
-  Form,
-  Input,
-  InputNumber,
-  notification,
-  Radio,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Tooltip,
-  Typography
+    Alert,
+    Button,
+    Card,
+    Checkbox,
+    Divider,
+    Form,
+    Input,
+    InputNumber,
+    notification,
+    Radio,
+    Select,
+    Space,
+    Table,
+    Tag,
+    Tooltip,
+    Typography
 } from 'antd';
 import React, { useEffect, useState } from 'react';
 
@@ -139,12 +139,6 @@ const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
                 } else {
                   onUpdateCartItemQuantity(record.id, value as number);
                 }
-              }
-            }}
-            onKeyDown={(e) => {
-              // Prevent all keyboard input except arrow keys and tab
-              if (!['ArrowUp', 'ArrowDown', 'Tab'].includes(e.key)) {
-                e.preventDefault();
               }
             }}
             controls={true}
