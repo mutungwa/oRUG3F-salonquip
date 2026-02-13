@@ -120,7 +120,7 @@ const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
       title: 'Qty',
       dataIndex: 'quantity',
       key: 'quantity',
-      width: 120,
+      width: 100,
       render: (_: number, record: CartItem) => (
         <div>
           <InputNumber
@@ -180,7 +180,7 @@ const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
             }}
             formatter={(value) => `KES ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
             parser={(value) => Number(value!.replace(/KES\s?|(,*)/g, ''))}
-            style={{ width: '120px' }}
+            style={{ width: '100px' }}
           />
           <div style={{ marginTop: 4 }}>
             <Tooltip title="Minimum sell price">
@@ -243,6 +243,7 @@ const MultiItemCheckout: React.FC<MultiItemCheckoutProps> = ({
           pagination={false}
           rowKey="id"
           size="small"
+          scroll={{ x: true }}
           summary={() => (
             <Table.Summary>
               <Table.Summary.Row>
